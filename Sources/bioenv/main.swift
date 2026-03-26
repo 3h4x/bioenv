@@ -12,6 +12,8 @@ func printUsage() {
       bioenv import FILE           Import secrets from .env file
       bioenv list                  List secret key names
       bioenv remove KEY            Remove a secret
+      bioenv status                Show status for current directory
+      bioenv destroy               Delete Keychain key and encrypted store
       bioenv config                Show current configuration
       bioenv config sync on|off    Enable/disable iCloud Keychain sync (default: on)
     """
@@ -35,6 +37,11 @@ do {
         try store.ensureStoreDirectory()
         if !FileManager.default.fileExists(atPath: store.storePath) {
             try store.writeSecrets([:], key: try Keychain.getKey(projectHash: store.projectHash))
+        }
+        let envrcPath = "\(store.projectPath)/.envrc"
+        if !FileManager.default.fileExists(atPath: envrcPath) {
+            try "eval \"$(bioenv load)\"\n".write(toFile: envrcPath, atomically: true, encoding: .utf8)
+            print("Created .envrc")
         }
         print("bioenv initialized for \(store.projectPath)")
         print("Store: \(store.storePath)")
@@ -127,6 +134,41 @@ do {
         }
         try store.writeSecrets(secrets, key: encKey)
         print("Removed \(key)")
+
+    case "status":
+        print("Directory: \(store.projectPath)")
+        print("Project hash: \(store.projectHash)")
+        print("Store: \(store.storePath)")
+        let hasStore = FileManager.default.fileExists(atPath: store.storePath)
+        print("Initialized: \(hasStore ? "yes" : "no")")
+        let keychainService = "com.bioenv.\(store.projectHash)"
+        print("Keychain service: \(keychainService)")
+        let hasKey = (try? Keychain.getKey(projectHash: store.projectHash)) != nil
+        print("Keychain key: \(hasKey ? "present" : "missing")")
+        let envrcPath = "\(store.projectPath)/.envrc"
+        let hasEnvrc = FileManager.default.fileExists(atPath: envrcPath)
+        print(".envrc: \(hasEnvrc ? "present" : "missing")")
+        if hasStore && hasKey {
+            try Keychain.authenticate(reason: "Access bioenv secrets")
+            let encKey = try Keychain.getKey(projectHash: store.projectHash)
+            let secrets = try store.readSecrets(key: encKey)
+            print("Secrets: \(secrets.count)")
+        }
+
+    case "destroy":
+        print("Directory: \(store.projectPath)")
+        print("Keychain service: com.bioenv.\(store.projectHash)")
+        print("Store: \(store.storePath)")
+        fputs("This will delete the Keychain key and encrypted store. Continue? [y/N] ", stderr)
+        guard let answer = readLine(), answer.lowercased() == "y" else {
+            print("Aborted")
+            exit(0)
+        }
+        try Keychain.deleteKey(projectHash: store.projectHash)
+        if FileManager.default.fileExists(atPath: store.storePath) {
+            try FileManager.default.removeItem(atPath: store.storePath)
+        }
+        print("Destroyed bioenv for \(store.projectPath)")
 
     case "config":
         if args.count < 2 {

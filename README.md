@@ -75,13 +75,20 @@ This also works with `.env`, `.env.development`, or any file in `KEY=VALUE` form
 
 ## direnv Integration
 
-The real power is automatic loading. Add to your project's `.envrc`:
+The real power is automatic loading. Add `eval "$(bioenv load)"` to your project's `.envrc`:
 
 ```bash
+# Non-secret env vars stay in .envrc as usual
+export SUPABASE_TYPE=local
+export NODE_OPTIONS="--max-old-space-size=8192"
+
+# Secrets loaded from bioenv (Touch ID prompt)
 eval "$(bioenv load)"
 ```
 
 Now when you `cd` into the project, direnv triggers `bioenv load`, Touch ID prompts once, and all secrets are loaded into your shell session. Leave the directory and they're gone.
+
+**Important:** Remove any `dotenv .env.local` lines from `.envrc` after migrating — the file no longer exists and direnv will warn about it on every load.
 
 ## All Commands
 

@@ -50,21 +50,7 @@ enum Keychain {
         }
     }
 
-    /// Create a SecAccess that trusts the current binary to access the item without prompting.
-    private static func createSelfTrustedAccess(label: String) -> SecAccess? {
-        // Trust the current application
-        var selfApp: SecTrustedApplication?
-        guard SecTrustedApplicationCreateFromPath(nil, &selfApp) == errSecSuccess,
-              let app = selfApp else {
-            return nil
-        }
-
-        var access: SecAccess?
-        let status = SecAccessCreate(label as CFString, [app] as CFArray, &access)
-        return status == errSecSuccess ? access : nil
-    }
-
-    static func getOrCreateKey(projectHash: String, syncable: Bool = false) throws -> Data {
+static func getOrCreateKey(projectHash: String, syncable: Bool = false) throws -> Data {
         if let existing = try? getKey(projectHash: projectHash) {
             return existing
         }
@@ -104,7 +90,7 @@ enum Keychain {
             ? kSecAttrAccessibleWhenUnlocked
             : kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 
-        var query: [String: Any] = [
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: "encryption-key",
@@ -112,12 +98,6 @@ enum Keychain {
             kSecAttrAccessible as String: accessibility,
             kSecAttrSynchronizable as String: syncable,
         ]
-
-        // Pre-authorize access so macOS doesn't show a password dialog on read
-        // Only needed for non-syncable items (file-based keychain)
-        if !syncable, let access = createSelfTrustedAccess(label: service) {
-            query[kSecAttrAccess as String] = access
-        }
 
         let addStatus = SecItemAdd(query as CFDictionary, nil)
         guard addStatus == errSecSuccess else {
