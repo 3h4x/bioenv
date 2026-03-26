@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    concurrency: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Git Version
+        id: version
+        uses: codacy/git-version@2.7.1
+        with:
+          release-branch: main
+          minor-identifier: "feat:"
+          major-identifier: "breaking:"
+          prefix: "v"
+
+      - name: Build
+        run: |
+          swift build -c release
+          codesign -s - -f .build/release/bioenv
+          cp .build/release/bioenv bioenv-arm64
+          chmod +x bioenv-arm64
+
+      - name: Push tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git tag "$VERSION"
+          git push origin "$VERSION"
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        with:
+          allowUpdates: true
+          draft: false
+          name: ${{ steps.version.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ steps.version.outputs.version }}
+          artifacts: bioenv-arm64
+          artifactContentType: application/octet-stream
+          body: |
+            ## Install
+
+            ```bash
+            # Download the binary
+            curl -L <release-url>/bioenv-arm64 -o ~/bin/bioenv
+            chmod +x ~/bin/bioenv
+            codesign -s - -f ~/bin/bioenv
+            ```
