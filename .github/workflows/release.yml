@@ -9,9 +9,10 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: macos-latest
-    concurrency: release
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,6 +27,13 @@ jobs:
           major-identifier: "breaking:"
           prefix: "v"
 
+  release:
+    needs: version
+    if: needs.version.outputs.version != ''
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Build
         run: |
           swift build -c release
@@ -35,29 +43,26 @@ jobs:
 
       - name: Push tag
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
           git tag "$VERSION"
           git push origin "$VERSION"
 
       - name: Create Release
         uses: ncipollo/release-action@v1
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
         with:
           allowUpdates: true
           draft: false
-          name: ${{ steps.version.outputs.version }}
+          name: ${{ needs.version.outputs.version }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ steps.version.outputs.version }}
+          tag: ${{ needs.version.outputs.version }}
           artifacts: bioenv-arm64
           artifactContentType: application/octet-stream
           body: |
             ## Install
 
             ```bash
-            # Download the binary
-            curl -L <release-url>/bioenv-arm64 -o ~/bin/bioenv
+            curl -L https://github.com/3h4x/bioenv/releases/latest/download/bioenv-arm64 -o ~/bin/bioenv
             chmod +x ~/bin/bioenv
             codesign -s - -f ~/bin/bioenv
             ```
