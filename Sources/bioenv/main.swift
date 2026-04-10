@@ -2,7 +2,7 @@ import Foundation
 
 func printUsage() {
     let usage = """
-    bioenv - Biometric-protected environment variables
+    bioenv \(appVersion) - Biometric-protected environment variables
 
     Usage:
       bioenv init                  Initialize bioenv for current directory
