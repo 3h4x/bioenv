@@ -16,6 +16,7 @@ func printUsage() {
       bioenv destroy               Delete Keychain key and encrypted store
       bioenv config                Show current configuration
       bioenv config sync on|off    Enable/disable iCloud Keychain sync (default: on)
+      bioenv version               Show version
     """
     fputs(usage + "\n", stderr)
 }
@@ -25,6 +26,11 @@ let args = Array(CommandLine.arguments.dropFirst())
 guard let command = args.first else {
     printUsage()
     exit(1)
+}
+
+if command == "version" || command == "--version" {
+    print("bioenv \(appVersion)")
+    exit(0)
 }
 
 do {
@@ -53,6 +59,10 @@ do {
             exit(1)
         }
         let key = args[1]
+        guard Store.isValidEnvVarName(key) else {
+            fputs("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*\n", stderr)
+            exit(1)
+        }
         let value: String
         if args.count >= 3 {
             value = args[2]
@@ -77,6 +87,10 @@ do {
             exit(1)
         }
         let key = args[1]
+        guard Store.isValidEnvVarName(key) else {
+            fputs("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*\n", stderr)
+            exit(1)
+        }
         try Keychain.authenticate(reason: "Access bioenv secrets")
         let encKey = try Keychain.getKey(projectHash: store.projectHash)
         let secrets = try store.readSecrets(key: encKey)
@@ -125,6 +139,10 @@ do {
             exit(1)
         }
         let key = args[1]
+        guard Store.isValidEnvVarName(key) else {
+            fputs("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*\n", stderr)
+            exit(1)
+        }
         try Keychain.authenticate(reason: "Access bioenv secrets")
         let encKey = try Keychain.getKey(projectHash: store.projectHash)
         var secrets = try store.readSecrets(key: encKey)

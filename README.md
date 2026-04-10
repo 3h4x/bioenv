@@ -11,9 +11,8 @@ Requires macOS with Xcode or Command Line Tools.
 ```bash
 git clone <repo-url>
 cd bioenv
-swift build -c release
-codesign -s - -f .build/release/bioenv
-cp .build/release/bioenv ~/bin/
+make install   # builds, signs, and copies to ~/bin
+make setup     # activates pre-push hook (optional, for contributors)
 ```
 
 Make sure `~/bin` is in your `PATH`.
@@ -103,6 +102,7 @@ Now when you `cd` into the project, direnv triggers `bioenv load`, Touch ID prom
 | `bioenv remove KEY` | Yes | Delete a secret |
 | `bioenv config` | No | Show current configuration |
 | `bioenv config sync on\|off` | No | Toggle iCloud Keychain sync (default: off) |
+| `bioenv version` | No | Show installed version |
 
 ## How It Works
 

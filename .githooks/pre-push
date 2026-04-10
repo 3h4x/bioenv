@@ -1,0 +1,7 @@
+#!/bin/sh
+# Verify the project compiles before pushing.
+set -e
+
+echo "Running swift build to verify compilation..."
+swift build
+echo "Build succeeded."

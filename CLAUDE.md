@@ -19,6 +19,12 @@ Biometric-protected environment variables using macOS Touch ID + Keychain.
 ## Build & Install
 
 ```bash
+make install   # build release, sign, copy to ~/bin
+make setup     # activate .githooks/pre-push (run once after cloning)
+```
+
+Or manually:
+```bash
 swift build -c release
 codesign -s - -f .build/release/bioenv
 cp .build/release/bioenv ~/bin/
@@ -33,6 +39,7 @@ Sources/bioenv/
   Crypto.swift     # AES-256-GCM encrypt/decrypt (CryptoKit)
   Store.swift      # Encrypted JSON file operations, .env parsing, shell escaping
   Config.swift     # Configuration management (~/.bioenv/config.json)
+  Version.swift    # appVersion constant ("dev" locally, injected by CI at release time)
 ```
 
 ## Commands
@@ -47,6 +54,7 @@ bioenv list              # List key names (Touch ID)
 bioenv remove KEY        # Remove a secret (Touch ID)
 bioenv config            # Show current configuration
 bioenv config sync on|off  # Enable/disable iCloud Keychain sync (default: off, requires Apple Developer cert)
+bioenv version             # Show installed version
 ```
 
 ## direnv Integration

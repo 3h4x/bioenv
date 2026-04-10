@@ -78,7 +78,10 @@ static func getOrCreateKey(projectHash: String, syncable: Bool = false) throws -
         let status = SecItemCopyMatching(query as CFDictionary, &result)
 
         guard status == errSecSuccess, let keyData = result as? Data else {
-            throw KeychainError("Failed to retrieve key", status: status)
+            if status == errSecItemNotFound {
+                throw KeychainError("No encryption key found for this project — run 'bioenv init' first")
+            }
+            throw KeychainError("Failed to retrieve encryption key", status: status)
         }
 
         return keyData
@@ -86,6 +89,8 @@ static func getOrCreateKey(projectHash: String, syncable: Bool = false) throws -
 
     static func createKey(projectHash: String, syncable: Bool = false) throws -> Data {
         var keyBytes = [UInt8](repeating: 0, count: 32)
+        // Zero the stack buffer on exit regardless of success or failure path.
+        defer { for i in 0..<keyBytes.count { keyBytes[i] = 0 } }
         let status = SecRandomCopyBytes(kSecRandomDefault, keyBytes.count, &keyBytes)
         guard status == errSecSuccess else {
             throw KeychainError("Failed to generate random key", status: status)

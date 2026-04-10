@@ -30,17 +30,34 @@ struct Store {
         }
 
         let encryptedData = try Data(contentsOf: fileURL)
-        let decryptedData = try Crypto.decrypt(data: encryptedData, key: key)
+        // Zero the plaintext buffer as soon as JSON decoding completes so secret
+        // bytes don't linger in the heap beyond their point of use.
+        var decryptedData = try Crypto.decrypt(data: encryptedData, key: key)
+        defer { decryptedData.resetBytes(in: 0..<decryptedData.count) }
         let secrets = try JSONDecoder().decode([String: String].self, from: decryptedData)
         return secrets
     }
 
     func writeSecrets(_ secrets: [String: String], key: Data) throws {
         try ensureStoreDirectory()
-        let jsonData = try JSONEncoder().encode(secrets)
+        // Zero the plaintext JSON buffer after encryption so secret bytes don't
+        // linger in the heap longer than necessary.
+        var jsonData = try JSONEncoder().encode(secrets)
+        defer { jsonData.resetBytes(in: 0..<jsonData.count) }
         let encryptedData = try Crypto.encrypt(data: jsonData, key: key)
         let fileURL = URL(fileURLWithPath: storePath)
         try encryptedData.write(to: fileURL)
+    }
+
+    /// Returns true if `name` is a valid POSIX environment variable name:
+    /// matches `[A-Za-z_][A-Za-z0-9_]*`. Names that fail this check produce
+    /// malformed `export` statements when passed to the shell.
+    static func isValidEnvVarName(_ name: String) -> Bool {
+        guard !name.isEmpty, let first = name.unicodeScalars.first else { return false }
+        let leadSet = CharacterSet.letters.union(CharacterSet(charactersIn: "_"))
+        let bodySet = leadSet.union(.decimalDigits)
+        guard leadSet.contains(first) else { return false }
+        return name.unicodeScalars.dropFirst().allSatisfy { bodySet.contains($0) }
     }
 
     func shellEscape(_ value: String) -> String {
@@ -84,8 +101,10 @@ struct Store {
                 }
             }
 
-            if !key.isEmpty {
+            if isValidEnvVarName(key) {
                 result[key] = value
+            } else if !key.isEmpty {
+                fputs("warning: skipping invalid key '\(key)' (must match [A-Za-z_][A-Za-z0-9_]*)\n", stderr)
             }
         }
 
