@@ -44,6 +44,8 @@ struct Store {
     }
 
     func shellEscape(_ value: String) -> String {
+        // Empty string must be quoted so the shell sees an empty argument, not nothing.
+        guard !value.isEmpty else { return "''" }
         if value.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" || $0 == "." || $0 == "/" || $0 == ":" }) {
             return value
         }
@@ -69,10 +71,17 @@ struct Store {
             let key = String(trimmed[trimmed.startIndex..<equalsIndex]).trimmingCharacters(in: .whitespaces)
             var value = String(trimmed[trimmed.index(after: equalsIndex)...]).trimmingCharacters(in: .whitespaces)
 
-            // Strip surrounding quotes
-            if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-               (value.hasPrefix("'") && value.hasSuffix("'")) {
+            // Strip surrounding quotes (keeps everything inside verbatim, including # characters).
+            if value.count >= 2 &&
+               ((value.hasPrefix("\"") && value.hasSuffix("\"")) ||
+                (value.hasPrefix("'") && value.hasSuffix("'"))) {
                 value = String(value.dropFirst().dropLast())
+            } else {
+                // Unquoted value: strip trailing inline comment (whitespace + #).
+                // e.g. KEY=value # my comment  →  value
+                if let commentRange = value.range(of: #"\s+#.*$"#, options: .regularExpression) {
+                    value = String(value[value.startIndex..<commentRange.lowerBound])
+                }
             }
 
             if !key.isEmpty {

@@ -24,29 +24,37 @@ enum Keychain {
         "com.bioenv.\(projectHash)"
     }
 
+    /// Holds the result of an LAContext.evaluatePolicy callback.
+    /// Marked @unchecked Sendable because a DispatchSemaphore provides the
+    /// ordering guarantee (write-then-signal / wait-then-read), so concurrent
+    /// access never actually occurs in practice.
+    private final class AuthResult: @unchecked Sendable {
+        var authenticated = false
+        var error: NSError?
+    }
+
     /// Authenticate the user with Touch ID / password before accessing secrets.
     static func authenticate(reason: String) throws {
         let context = LAContext()
-        var error: NSError?
+        var canEvalError: NSError?
 
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            throw KeychainError("Biometric authentication not available: \(error?.localizedDescription ?? "unknown")")
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &canEvalError) else {
+            throw KeychainError("Biometric authentication not available: \(canEvalError?.localizedDescription ?? "unknown")")
         }
 
-        var authError: NSError?
-        var authenticated = false
+        let result = AuthResult()
         let semaphore = DispatchSemaphore(value: 0)
 
         context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, evalError in
-            authenticated = success
-            authError = evalError as? NSError
+            result.authenticated = success
+            result.error = evalError as? NSError
             semaphore.signal()
         }
 
         semaphore.wait()
 
-        guard authenticated else {
-            throw KeychainError("Authentication failed: \(authError?.localizedDescription ?? "unknown")")
+        guard result.authenticated else {
+            throw KeychainError("Authentication failed: \(result.error?.localizedDescription ?? "unknown")")
         }
     }
 
