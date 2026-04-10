@@ -6,10 +6,20 @@ Replace plaintext `.env` files with encrypted storage. One fingerprint tap to lo
 
 ## Install
 
+**Option 1: Download pre-built binary (easiest)**
+
+```bash
+curl -L https://github.com/3h4x/bioenv/releases/latest/download/bioenv-arm64 -o ~/bin/bioenv
+chmod +x ~/bin/bioenv
+codesign -s - -f ~/bin/bioenv
+```
+
+**Option 2: Build from source**
+
 Requires macOS with Xcode or Command Line Tools.
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/3h4x/bioenv.git
 cd bioenv
 make install   # builds, signs, and copies to ~/bin
 make setup     # activates pre-push hook (optional, for contributors)
