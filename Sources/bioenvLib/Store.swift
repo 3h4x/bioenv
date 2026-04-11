@@ -1,12 +1,12 @@
 import Foundation
 import CryptoKit
 
-struct Store {
-    let projectPath: String
-    let projectHash: String
-    let storePath: String
+public struct Store {
+    public let projectPath: String
+    public let projectHash: String
+    public let storePath: String
 
-    init(projectPath: String? = nil) {
+    public init(projectPath: String? = nil) {
         let path = projectPath ?? FileManager.default.currentDirectoryPath
         self.projectPath = path
 
@@ -17,12 +17,12 @@ struct Store {
         self.storePath = "\(homeDir)/.bioenv/\(self.projectHash).enc"
     }
 
-    func ensureStoreDirectory() throws {
+    public func ensureStoreDirectory() throws {
         let dir = (storePath as NSString).deletingLastPathComponent
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
     }
 
-    func readSecrets(key: Data) throws -> [String: String] {
+    public func readSecrets(key: Data) throws -> [String: String] {
         let fileURL = URL(fileURLWithPath: storePath)
 
         guard FileManager.default.fileExists(atPath: storePath) else {
@@ -38,7 +38,7 @@ struct Store {
         return secrets
     }
 
-    func writeSecrets(_ secrets: [String: String], key: Data) throws {
+    public func writeSecrets(_ secrets: [String: String], key: Data) throws {
         try ensureStoreDirectory()
         // Zero the plaintext JSON buffer after encryption so secret bytes don't
         // linger in the heap longer than necessary.
@@ -52,7 +52,7 @@ struct Store {
     /// Returns true if `name` is a valid POSIX environment variable name:
     /// matches `[A-Za-z_][A-Za-z0-9_]*`. Names that fail this check produce
     /// malformed `export` statements when passed to the shell.
-    static func isValidEnvVarName(_ name: String) -> Bool {
+    public static func isValidEnvVarName(_ name: String) -> Bool {
         guard !name.isEmpty, let first = name.unicodeScalars.first else { return false }
         let leadSet = CharacterSet.letters.union(CharacterSet(charactersIn: "_"))
         let bodySet = leadSet.union(.decimalDigits)
@@ -60,7 +60,7 @@ struct Store {
         return name.unicodeScalars.dropFirst().allSatisfy { bodySet.contains($0) }
     }
 
-    func shellEscape(_ value: String) -> String {
+    public func shellEscape(_ value: String) -> String {
         // Empty string must be quoted so the shell sees an empty argument, not nothing.
         guard !value.isEmpty else { return "''" }
 
@@ -99,7 +99,7 @@ struct Store {
         return "'\(escaped)'"
     }
 
-    static func parseEnvFile(_ path: String) throws -> [String: String] {
+    public static func parseEnvFile(_ path: String) throws -> [String: String] {
         let content = try String(contentsOfFile: path, encoding: .utf8)
         var result: [String: String] = [:]
 
