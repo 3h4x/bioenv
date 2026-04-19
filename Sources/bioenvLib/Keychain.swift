@@ -59,10 +59,11 @@ public enum Keychain {
     }
 
     public static func getOrCreateKey(projectHash: String, syncable: Bool = false) throws -> Data {
-        if let existing = try? getKey(projectHash: projectHash) {
-            return existing
+        do {
+            return try getKey(projectHash: projectHash)
+        } catch let e as KeychainError where e.status == errSecItemNotFound {
+            return try createKey(projectHash: projectHash, syncable: syncable)
         }
-        return try createKey(projectHash: projectHash, syncable: syncable)
     }
 
     public static func getKey(projectHash: String) throws -> Data {
@@ -79,7 +80,7 @@ public enum Keychain {
 
         guard status == errSecSuccess, let keyData = result as? Data else {
             if status == errSecItemNotFound {
-                throw KeychainError("No encryption key found for this project — run 'bioenv init' first")
+                throw KeychainError("No encryption key found for this project — run 'bioenv init' first", status: errSecItemNotFound)
             }
             throw KeychainError("Failed to retrieve encryption key", status: status)
         }

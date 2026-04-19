@@ -16,7 +16,7 @@ func printUsage() {
       bioenv status                Show status for current directory
       bioenv destroy               Delete Keychain key and encrypted store
       bioenv config                Show current configuration
-      bioenv config sync on|off    Enable/disable iCloud Keychain sync (default: on)
+      bioenv config sync on|off    Enable/disable iCloud Keychain sync (default: off)
       bioenv version               Show version
     """
     fputs(usage + "\n", stderr)
@@ -40,10 +40,10 @@ do {
 
     switch command {
     case "init":
-        let _ = try Keychain.getOrCreateKey(projectHash: store.projectHash, syncable: config.sync)
+        let encKey = try Keychain.getOrCreateKey(projectHash: store.projectHash, syncable: config.sync)
         try store.ensureStoreDirectory()
         if !FileManager.default.fileExists(atPath: store.storePath) {
-            try store.writeSecrets([:], key: try Keychain.getKey(projectHash: store.projectHash))
+            try store.writeSecrets([:], key: encKey)
         }
         let envrcPath = "\(store.projectPath)/.envrc"
         if !FileManager.default.fileExists(atPath: envrcPath) {
@@ -162,14 +162,13 @@ do {
         print("Initialized: \(hasStore ? "yes" : "no")")
         let keychainService = "com.bioenv.\(store.projectHash)"
         print("Keychain service: \(keychainService)")
-        let hasKey = (try? Keychain.getKey(projectHash: store.projectHash)) != nil
-        print("Keychain key: \(hasKey ? "present" : "missing")")
+        let maybeKey = try? Keychain.getKey(projectHash: store.projectHash)
+        print("Keychain key: \(maybeKey != nil ? "present" : "missing")")
         let envrcPath = "\(store.projectPath)/.envrc"
         let hasEnvrc = FileManager.default.fileExists(atPath: envrcPath)
         print(".envrc: \(hasEnvrc ? "present" : "missing")")
-        if hasStore && hasKey {
+        if hasStore, let encKey = maybeKey {
             try Keychain.authenticate(reason: "Access bioenv secrets")
-            let encKey = try Keychain.getKey(projectHash: store.projectHash)
             let secrets = try store.readSecrets(key: encKey)
             print("Secrets: \(secrets.count)")
         }

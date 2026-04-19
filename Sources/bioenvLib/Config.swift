@@ -3,6 +3,10 @@ import Foundation
 public struct BioenvConfig: Codable, Sendable {
     public var sync: Bool
 
+    public init(sync: Bool) {
+        self.sync = sync
+    }
+
     public static let defaultConfig = BioenvConfig(sync: false)
 
     public static var configPath: String {
@@ -10,21 +14,21 @@ public struct BioenvConfig: Codable, Sendable {
         return "\(homeDir)/.bioenv/config.json"
     }
 
-    public static func load() -> BioenvConfig {
-        guard FileManager.default.fileExists(atPath: configPath),
-              let data = try? Data(contentsOf: URL(fileURLWithPath: configPath)),
+    public static func load(from path: String = BioenvConfig.configPath) -> BioenvConfig {
+        guard FileManager.default.fileExists(atPath: path),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
               let config = try? JSONDecoder().decode(BioenvConfig.self, from: data) else {
             return defaultConfig
         }
         return config
     }
 
-    public func save() throws {
-        let dir = (BioenvConfig.configPath as NSString).deletingLastPathComponent
+    public func save(to path: String = BioenvConfig.configPath) throws {
+        let dir = (path as NSString).deletingLastPathComponent
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
         let data = try encoder.encode(self)
-        try data.write(to: URL(fileURLWithPath: BioenvConfig.configPath))
+        try data.write(to: URL(fileURLWithPath: path))
     }
 }

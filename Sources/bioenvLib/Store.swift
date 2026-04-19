@@ -6,15 +6,18 @@ public struct Store {
     public let projectHash: String
     public let storePath: String
 
-    public init(projectPath: String? = nil) {
+    public init(projectPath: String? = nil, storeDir: String? = nil) {
         let path = projectPath ?? FileManager.default.currentDirectoryPath
         self.projectPath = path
 
         let hash = SHA256.hash(data: Data(path.utf8))
         self.projectHash = hash.compactMap { String(format: "%02x", $0) }.joined().prefix(16).description
 
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
-        self.storePath = "\(homeDir)/.bioenv/\(self.projectHash).enc"
+        let dir = storeDir ?? {
+            let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+            return "\(homeDir)/.bioenv"
+        }()
+        self.storePath = "\(dir)/\(self.projectHash).enc"
     }
 
     public func ensureStoreDirectory() throws {
@@ -46,7 +49,7 @@ public struct Store {
         defer { jsonData.resetBytes(in: 0..<jsonData.count) }
         let encryptedData = try Crypto.encrypt(data: jsonData, key: key)
         let fileURL = URL(fileURLWithPath: storePath)
-        try encryptedData.write(to: fileURL)
+        try encryptedData.write(to: fileURL, options: .atomic)
     }
 
     /// Returns true if `name` is a valid POSIX environment variable name:
@@ -54,8 +57,11 @@ public struct Store {
     /// malformed `export` statements when passed to the shell.
     public static func isValidEnvVarName(_ name: String) -> Bool {
         guard !name.isEmpty, let first = name.unicodeScalars.first else { return false }
-        let leadSet = CharacterSet.letters.union(CharacterSet(charactersIn: "_"))
-        let bodySet = leadSet.union(.decimalDigits)
+        // Explicitly ASCII-only — CharacterSet.letters accepts Unicode letters which
+        // are not valid in POSIX env var names.
+        let asciiLetters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+        let leadSet = asciiLetters.union(CharacterSet(charactersIn: "_"))
+        let bodySet = leadSet.union(CharacterSet(charactersIn: "0123456789"))
         guard leadSet.contains(first) else { return false }
         return name.unicodeScalars.dropFirst().allSatisfy { bodySet.contains($0) }
     }
