@@ -22,7 +22,10 @@ func printUsage() {
     fputs(usage + "\n", stderr)
 }
 
+ProcessInfo.processInfo.processName = "bioenv \(appVersion)"
 let args = Array(CommandLine.arguments.dropFirst())
+let dirPath = FileManager.default.currentDirectoryPath
+    .replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~")
 
 guard let command = args.first else {
     printUsage()
@@ -74,7 +77,7 @@ do {
             exit(1)
         }
 
-        try Keychain.authenticate(reason: "Access bioenv secrets")
+        try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to set var in:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getOrCreateKey(projectHash: store.projectHash, syncable: config.sync)
         try store.ensureStoreDirectory()
         var secrets = try store.readSecrets(key: encKey)
@@ -92,7 +95,7 @@ do {
             fputs("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*\n", stderr)
             exit(1)
         }
-        try Keychain.authenticate(reason: "Access bioenv secrets")
+        try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to get var from:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getKey(projectHash: store.projectHash)
         let secrets = try store.readSecrets(key: encKey)
         guard let value = secrets[key] else {
@@ -102,7 +105,7 @@ do {
         print(value)
 
     case "load":
-        try Keychain.authenticate(reason: "Access bioenv secrets")
+        try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to load vars from:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getKey(projectHash: store.projectHash)
         let secrets = try store.readSecrets(key: encKey)
         for (key, value) in secrets.sorted(by: { $0.key < $1.key }) {
@@ -115,7 +118,7 @@ do {
             exit(1)
         }
         let file = args[1]
-        try Keychain.authenticate(reason: "Access bioenv secrets")
+        try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to import vars into:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getOrCreateKey(projectHash: store.projectHash, syncable: config.sync)
         try store.ensureStoreDirectory()
         var secrets = try store.readSecrets(key: encKey)
@@ -127,7 +130,7 @@ do {
         print("Imported \(imported.count) secrets from \(file)")
 
     case "list":
-        try Keychain.authenticate(reason: "Access bioenv secrets")
+        try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to list vars in:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getKey(projectHash: store.projectHash)
         let secrets = try store.readSecrets(key: encKey)
         for key in secrets.keys.sorted() {
@@ -144,7 +147,7 @@ do {
             fputs("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*\n", stderr)
             exit(1)
         }
-        try Keychain.authenticate(reason: "Access bioenv secrets")
+        try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to remove var from:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getKey(projectHash: store.projectHash)
         var secrets = try store.readSecrets(key: encKey)
         guard secrets.removeValue(forKey: key) != nil else {
@@ -168,7 +171,7 @@ do {
         let hasEnvrc = FileManager.default.fileExists(atPath: envrcPath)
         print(".envrc: \(hasEnvrc ? "present" : "missing")")
         if hasStore, let encKey = maybeKey {
-            try Keychain.authenticate(reason: "Access bioenv secrets")
+            try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to access secrets in:\n\(dirPath)\n\nAuthenticate to continue")
             let secrets = try store.readSecrets(key: encKey)
             print("Secrets: \(secrets.count)")
         }
