@@ -52,18 +52,22 @@ public struct Store {
         try encryptedData.write(to: fileURL, options: .atomic)
     }
 
+    // Explicitly ASCII-only — CharacterSet.letters accepts Unicode letters which
+    // are not valid in POSIX env var names.
+    private static let envVarLeadSet: CharacterSet = {
+        let ascii = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
+        return ascii.union(CharacterSet(charactersIn: "_"))
+    }()
+    private static let envVarBodySet: CharacterSet =
+        envVarLeadSet.union(CharacterSet(charactersIn: "0123456789"))
+
     /// Returns true if `name` is a valid POSIX environment variable name:
     /// matches `[A-Za-z_][A-Za-z0-9_]*`. Names that fail this check produce
     /// malformed `export` statements when passed to the shell.
     public static func isValidEnvVarName(_ name: String) -> Bool {
         guard !name.isEmpty, let first = name.unicodeScalars.first else { return false }
-        // Explicitly ASCII-only — CharacterSet.letters accepts Unicode letters which
-        // are not valid in POSIX env var names.
-        let asciiLetters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
-        let leadSet = asciiLetters.union(CharacterSet(charactersIn: "_"))
-        let bodySet = leadSet.union(CharacterSet(charactersIn: "0123456789"))
-        guard leadSet.contains(first) else { return false }
-        return name.unicodeScalars.dropFirst().allSatisfy { bodySet.contains($0) }
+        guard envVarLeadSet.contains(first) else { return false }
+        return name.unicodeScalars.dropFirst().allSatisfy { envVarBodySet.contains($0) }
     }
 
     public func shellEscape(_ value: String) -> String {

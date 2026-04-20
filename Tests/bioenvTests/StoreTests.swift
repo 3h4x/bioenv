@@ -157,6 +157,15 @@ struct EnvVarNameTests {
     @Test func allDigitsRejected() {
         #expect(!Store.isValidEnvVarName("123"))
     }
+
+    @Test func repeatedCallsProduceConsistentResults() {
+        // Static CharacterSets must give identical answers across many invocations.
+        for _ in 0..<500 {
+            #expect(Store.isValidEnvVarName("VALID_KEY"))
+            #expect(!Store.isValidEnvVarName("1INVALID"))
+            #expect(!Store.isValidEnvVarName("café"))
+        }
+    }
 }
 
 @Suite("Store.parseEnvFile")
@@ -573,6 +582,27 @@ struct StoreRoundTripTests {
         var isDir: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: storeDir, isDirectory: &isDir)
         #expect(exists && isDir.boolValue)
+    }
+
+    @Test func ensureStoreDirectoryIsIdempotent() throws {
+        // Calling ensureStoreDirectory twice must not throw even when the dir exists.
+        let (store, base) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: base) }
+        try store.ensureStoreDirectory()
+        #expect(throws: Never.self) {
+            try store.ensureStoreDirectory()
+        }
+    }
+
+    @Test func writeSecretsWithExistingDirectorySucceeds() throws {
+        let (store, base) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let key = makeKey()
+        // Pre-create the directory so writeSecrets encounters an existing dir.
+        try store.ensureStoreDirectory()
+        try store.writeSecrets(["PRE": "exists"], key: key)
+        let result = try store.readSecrets(key: key)
+        #expect(result["PRE"] == "exists")
     }
 }
 

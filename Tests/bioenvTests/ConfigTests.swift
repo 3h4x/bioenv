@@ -153,4 +153,20 @@ struct BioenvConfigTests {
         let b = BioenvConfig(sync: false)
         #expect(b.sync == false)
     }
+
+    @Test func configPathIsInDotBioenvDir() {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+        #expect(BioenvConfig.configPath == "\(homeDir)/.bioenv/config.json")
+    }
+
+    @Test func configPathEndsWithConfigJSON() {
+        #expect(BioenvConfig.configPath.hasSuffix("/config.json"))
+    }
+
+    @Test func loadFromJSONWithUnknownFieldsReturnsDefault() {
+        // Codable silently ignores unknown keys — future-proof for added fields.
+        let json = Data(#"{"sync":true,"unknownFutureField":"ignored"}"#.utf8)
+        let config = try? JSONDecoder().decode(BioenvConfig.self, from: json)
+        #expect(config?.sync == true)
+    }
 }

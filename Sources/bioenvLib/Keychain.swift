@@ -78,11 +78,14 @@ public enum Keychain {
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
 
-        guard status == errSecSuccess, let keyData = result as? Data else {
-            if status == errSecItemNotFound {
-                throw KeychainError("No encryption key found for this project — run 'bioenv init' first", status: errSecItemNotFound)
-            }
+        if status == errSecItemNotFound {
+            throw KeychainError("No encryption key found for this project — run 'bioenv init' first", status: errSecItemNotFound)
+        }
+        guard status == errSecSuccess else {
             throw KeychainError("Failed to retrieve encryption key", status: status)
+        }
+        guard let keyData = result as? Data else {
+            throw KeychainError("Keychain returned unexpected data type for encryption key")
         }
 
         return keyData

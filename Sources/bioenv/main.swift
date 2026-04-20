@@ -37,6 +37,11 @@ if command == "version" || command == "--version" {
     exit(0)
 }
 
+if command == "help" || command == "--help" || command == "-h" {
+    printUsage()
+    exit(0)
+}
+
 do {
     let config = BioenvConfig.load()
     let store = Store()
@@ -194,7 +199,11 @@ do {
     case "config":
         if args.count < 2 {
             print("sync: \(config.sync ? "on" : "off") (iCloud Keychain sync)")
-        } else if args.count >= 3 && args[1] == "sync" {
+        } else if args[1] == "sync" {
+            guard args.count >= 3 else {
+                print("sync: \(config.sync ? "on" : "off") (iCloud Keychain sync)")
+                break
+            }
             var newConfig = config
             switch args[2] {
             case "on", "true", "yes":
