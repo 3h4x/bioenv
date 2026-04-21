@@ -168,7 +168,7 @@ do {
         print("Store: \(store.storePath)")
         let hasStore = FileManager.default.fileExists(atPath: store.storePath)
         print("Initialized: \(hasStore ? "yes" : "no")")
-        let keychainService = "com.bioenv.\(store.projectHash)"
+        let keychainService = Keychain.serviceName(for: store.projectHash)
         print("Keychain service: \(keychainService)")
         let maybeKey = try? Keychain.getKey(projectHash: store.projectHash)
         print("Keychain key: \(maybeKey != nil ? "present" : "missing")")
@@ -183,7 +183,7 @@ do {
 
     case "destroy":
         print("Directory: \(store.projectPath)")
-        print("Keychain service: com.bioenv.\(store.projectHash)")
+        print("Keychain service: \(Keychain.serviceName(for: store.projectHash))")
         print("Store: \(store.storePath)")
         fputs("This will delete the Keychain key and encrypted store. Continue? [y/N] ", stderr)
         guard let answer = readLine(), answer.lowercased() == "y" else {

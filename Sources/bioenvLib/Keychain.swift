@@ -20,7 +20,7 @@ public struct KeychainError: Error, CustomStringConvertible {
 }
 
 public enum Keychain {
-    private static func serviceName(for projectHash: String) -> String {
+    public static func serviceName(for projectHash: String) -> String {
         "com.bioenv.\(projectHash)"
     }
 
