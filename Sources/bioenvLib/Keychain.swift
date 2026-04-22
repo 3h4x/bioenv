@@ -51,7 +51,10 @@ public enum Keychain {
             semaphore.signal()
         }
 
-        semaphore.wait()
+        // 60-second cap so a hung LAContext callback doesn't block the process forever.
+        guard semaphore.wait(timeout: .now() + .seconds(60)) == .success else {
+            throw KeychainError("Authentication timed out")
+        }
 
         guard result.authenticated else {
             throw KeychainError("Authentication failed: \(result.error?.localizedDescription ?? "unknown")")
