@@ -75,7 +75,7 @@ public struct Store {
         guard !value.isEmpty else { return "''" }
 
         // Fast path: all chars are safe to emit unquoted.
-        if value.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" || $0 == "." || $0 == "/" || $0 == ":" }) {
+        if value.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" || $0 == "." || $0 == "/" || $0 == ":") }) {
             return value
         }
 

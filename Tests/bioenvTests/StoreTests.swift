@@ -103,6 +103,14 @@ struct ShellEscapeTests {
         #expect(store.shellEscape("🔑") == "'🔑'")
     }
 
+    @Test func accentedLatinIsSingleQuoted() {
+        // Non-ASCII letters (é, ñ, etc.) must not bypass quoting via the fast path.
+        // Swift's isLetter is Unicode-aware, so without the isASCII guard these
+        // would slip through unquoted while emoji (symbols) would not — inconsistent.
+        #expect(store.shellEscape("café") == "'café'")
+        #expect(store.shellEscape("naïve") == "'naïve'")
+    }
+
     @Test func atSignIsSingleQuoted() {
         #expect(store.shellEscape("user@example.com") == "'user@example.com'")
     }

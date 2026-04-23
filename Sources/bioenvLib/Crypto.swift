@@ -16,17 +16,16 @@ public enum CryptoError: Error, CustomStringConvertible {
 public enum Crypto {
     public static func encrypt(data: Data, key: Data) throws -> Data {
         let symmetricKey = SymmetricKey(data: key)
+        let sealedBox: AES.GCM.SealedBox
         do {
-            let sealedBox = try AES.GCM.seal(data, using: symmetricKey)
-            guard let combined = sealedBox.combined else {
-                throw CryptoError.encryptionFailed("Failed to get combined representation")
-            }
-            return combined
-        } catch let error as CryptoError {
-            throw error
+            sealedBox = try AES.GCM.seal(data, using: symmetricKey)
         } catch {
             throw CryptoError.encryptionFailed(error.localizedDescription)
         }
+        guard let combined = sealedBox.combined else {
+            throw CryptoError.encryptionFailed("Failed to get combined representation")
+        }
+        return combined
     }
 
     public static func decrypt(data: Data, key: Data) throws -> Data {
