@@ -33,3 +33,27 @@ struct KeychainServiceNameTests {
         #expect(Keychain.serviceName(for: store.projectHash) == expected)
     }
 }
+
+@Suite("KeychainError")
+struct KeychainErrorTests {
+    @Test func descriptionIncludesStatusWhenPresent() {
+        let err = KeychainError("retrieval failed", status: -25300)
+        #expect(err.description == "retrieval failed (OSStatus: -25300)")
+    }
+
+    @Test func descriptionExcludesStatusWhenNil() {
+        let err = KeychainError("biometric unavailable")
+        #expect(err.description == "biometric unavailable")
+    }
+
+    @Test func messageAndStatusAreAccessible() {
+        let err = KeychainError("stored key missing", status: errSecItemNotFound)
+        #expect(err.message == "stored key missing")
+        #expect(err.status == errSecItemNotFound)
+    }
+
+    @Test func nilStatusPropertyWhenOmitted() {
+        let err = KeychainError("no status")
+        #expect(err.status == nil)
+    }
+}

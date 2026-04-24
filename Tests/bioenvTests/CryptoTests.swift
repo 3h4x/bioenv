@@ -122,4 +122,16 @@ struct CryptoTests {
             Issue.record("Expected CryptoError, got \(error)")
         }
     }
+
+    // MARK: - Error descriptions
+
+    @Test func encryptionErrorDescriptionContainsMessage() {
+        let err = CryptoError.encryptionFailed("sealed box unavailable")
+        #expect(err.description == "Encryption failed: sealed box unavailable")
+    }
+
+    @Test func decryptionErrorDescriptionContainsMessage() {
+        let err = CryptoError.decryptionFailed("authentication tag mismatch")
+        #expect(err.description == "Decryption failed: authentication tag mismatch")
+    }
 }

@@ -133,6 +133,70 @@ struct ShellEscapeTests {
     @Test func valueWithAllSafePunctuation() {
         #expect(store.shellEscape("a_b-c.d/e:f") == "a_b-c.d/e:f")
     }
+
+    // MARK: - Common real-world patterns
+
+    @Test func equalsSignIsSingleQuoted() {
+        #expect(store.shellEscape("=") == "'='")
+        #expect(store.shellEscape("a=b") == "'a=b'")
+    }
+
+    @Test func plusSignIsSingleQuoted() {
+        #expect(store.shellEscape("a+b") == "'a+b'")
+    }
+
+    @Test func percentSignIsSingleQuoted() {
+        #expect(store.shellEscape("100%") == "'100%'")
+    }
+
+    @Test func globCharsAreSingleQuoted() {
+        #expect(store.shellEscape("*.log") == "'*.log'")
+        #expect(store.shellEscape("file?.txt") == "'file?.txt'")
+    }
+
+    @Test func tildeIsSingleQuoted() {
+        // ~ triggers tilde expansion in shells; must be quoted.
+        #expect(store.shellEscape("~/path") == "'~/path'")
+    }
+
+    @Test func backtickIsSingleQuoted() {
+        // Backtick is safe inside single quotes but must still be quoted (not unquoted).
+        #expect(store.shellEscape("a`b") == "'a`b'")
+    }
+
+    @Test func semicolonIsSingleQuoted() {
+        #expect(store.shellEscape("a;b") == "'a;b'")
+    }
+
+    @Test func singleQuoteAloneEscapes() {
+        // Single quote → '' "'" '' (empty + double-quoted ' + empty) = '
+        #expect(store.shellEscape("'") == "''\"'\"''")
+    }
+
+    @Test func standardBase64IsSingleQuoted() {
+        // Standard base64 uses +, /, = which are not in the safe set.
+        #expect(store.shellEscape("abc+def/ghi==") == "'abc+def/ghi=='")
+    }
+
+    @Test func base64urlJwtIsUnquoted() {
+        // JWT uses base64url (-, _ instead of +, /) separated by dots — all safe.
+        let jwt = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        #expect(store.shellEscape(jwt) == jwt)
+    }
+
+    @Test func databaseURLIsSingleQuoted() {
+        // @ and ? are not safe; whole URL must be single-quoted.
+        let url = "postgres://user@host:5432/db?sslmode=require"
+        #expect(store.shellEscape(url) == "'\(url)'")
+    }
+
+    @Test func braceExpansionCharsSingleQuoted() {
+        #expect(store.shellEscape("${FOO}") == "'${FOO}'")
+    }
+
+    @Test func andSignIsSingleQuoted() {
+        #expect(store.shellEscape("foo&bar") == "'foo&bar'")
+    }
 }
 
 @Suite("Store.isValidEnvVarName")
@@ -412,6 +476,38 @@ struct ParseEnvFileTests {
         let result = try parse("KEY=\"a=b=c=d\"\n")
         #expect(result["KEY"] == "a=b=c=d")
     }
+
+    // MARK: - Edge cases
+
+    @Test func fileWithoutTrailingNewline() throws {
+        // Files missing the final newline must still parse the last line.
+        let result = try parse("KEY=value")
+        #expect(result["KEY"] == "value")
+    }
+
+    @Test func tabBeforeInlineCommentStripped() throws {
+        // \t counts as whitespace in the \s+# regex, so tab-separated comments strip.
+        let result = try parse("KEY=value\t# comment\n")
+        #expect(result["KEY"] == "value")
+    }
+
+    @Test func valueIsEqualsSign() throws {
+        // First '=' splits key/value; subsequent '=' chars belong to the value.
+        let result = try parse("KEY==\n")
+        #expect(result["KEY"] == "=")
+    }
+
+    @Test func whitespaceOnlyLineSkipped() throws {
+        let result = try parse("   \n")
+        #expect(result.isEmpty)
+    }
+
+    @Test func valueMissingNoNewlineAndMultipleKeys() throws {
+        // Last line has no newline; ensure all keys are parsed.
+        let result = try parse("A=1\nB=2")
+        #expect(result["A"] == "1")
+        #expect(result["B"] == "2")
+    }
 }
 
 @Suite("Store.projectHash")
@@ -611,6 +707,47 @@ struct StoreRoundTripTests {
         try store.writeSecrets(["PRE": "exists"], key: key)
         let result = try store.readSecrets(key: key)
         #expect(result["PRE"] == "exists")
+    }
+
+    @Test func writeSecretsCreatesDirectoryIfMissing() throws {
+        // writeSecrets calls ensureStoreDirectory() internally — callers need not
+        // pre-create the store directory.
+        let (store, base) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let key = makeKey()
+        try store.writeSecrets(["AUTO": "created"], key: key)
+        let result = try store.readSecrets(key: key)
+        #expect(result["AUTO"] == "created")
+    }
+
+    @Test func readSecretsThrowsWhenDecryptedDataIsNotJSON() throws {
+        // AES-GCM decrypts successfully but the plaintext is not valid JSON.
+        // readSecrets must propagate the JSONDecoder error rather than silently
+        // returning empty or crashing.
+        let (store, base) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let key = makeKey()
+        try store.ensureStoreDirectory()
+        let notJSON = Data("this is not valid JSON".utf8)
+        let ciphertext = try Crypto.encrypt(data: notJSON, key: key)
+        try ciphertext.write(to: URL(fileURLWithPath: store.storePath))
+        #expect(throws: (any Error).self) {
+            try store.readSecrets(key: key)
+        }
+    }
+
+    @Test func readSecretsThrowsWhenDecryptedDataIsJSONArray() throws {
+        // A JSON array decrypts fine but cannot be decoded as [String:String].
+        let (store, base) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let key = makeKey()
+        try store.ensureStoreDirectory()
+        let arrayJSON = Data("[\"not\",\"a\",\"dict\"]".utf8)
+        let ciphertext = try Crypto.encrypt(data: arrayJSON, key: key)
+        try ciphertext.write(to: URL(fileURLWithPath: store.storePath))
+        #expect(throws: (any Error).self) {
+            try store.readSecrets(key: key)
+        }
     }
 }
 
