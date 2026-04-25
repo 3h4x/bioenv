@@ -110,7 +110,10 @@ public struct Store {
     }
 
     public static func parseEnvFile(_ path: String) throws -> [String: String] {
-        let content = try String(contentsOfFile: path, encoding: .utf8)
+        var content = try String(contentsOfFile: path, encoding: .utf8)
+        // Windows editors commonly prepend a UTF-8 BOM (\u{FEFF}); without stripping it
+        // the first key becomes "\u{FEFF}KEY" which fails POSIX validation and is silently skipped.
+        if content.hasPrefix("\u{FEFF}") { content = String(content.dropFirst()) }
         var result: [String: String] = [:]
 
         for line in content.components(separatedBy: .newlines) {

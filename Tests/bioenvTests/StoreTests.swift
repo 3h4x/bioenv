@@ -81,6 +81,13 @@ struct ShellEscapeTests {
         #expect(store.shellEscape("key\nvalue=1") == "$'key\\nvalue=1'")
     }
 
+    @Test func nonAsciiWithControlChar() {
+        // Non-ASCII printable chars (é, emoji) in a value that also has a control char
+        // must pass through verbatim in the $'...' output; they are not hex-escaped.
+        #expect(store.shellEscape("café\n") == "$'café\\n'")
+        #expect(store.shellEscape("🔑\n") == "$'🔑\\n'")
+    }
+
     // MARK: - Backslash (printable, not a control char)
 
     @Test func backslashStandaloneIsSingleQuoted() {
@@ -500,6 +507,27 @@ struct ParseEnvFileTests {
     @Test func whitespaceOnlyLineSkipped() throws {
         let result = try parse("   \n")
         #expect(result.isEmpty)
+    }
+
+    // MARK: - BOM handling
+
+    @Test func utf8BomIsStripped() throws {
+        // Windows editors prepend a UTF-8 BOM (\u{FEFF}); it must not corrupt the first key.
+        let result = try parse("\u{FEFF}KEY=value\n")
+        #expect(result["KEY"] == "value")
+    }
+
+    @Test func utf8BomOnlyFileIsEmpty() throws {
+        // A file containing only a BOM (no keys) should parse to empty.
+        let result = try parse("\u{FEFF}")
+        #expect(result.isEmpty)
+    }
+
+    @Test func utf8BomWithMultipleKeys() throws {
+        // BOM must be stripped cleanly so all keys including the first parse correctly.
+        let result = try parse("\u{FEFF}A=1\nB=2\n")
+        #expect(result["A"] == "1")
+        #expect(result["B"] == "2")
     }
 
     @Test func valueMissingNoNewlineAndMultipleKeys() throws {
