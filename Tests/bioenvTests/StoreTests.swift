@@ -204,6 +204,25 @@ struct ShellEscapeTests {
     @Test func andSignIsSingleQuoted() {
         #expect(store.shellEscape("foo&bar") == "'foo&bar'")
     }
+
+    // MARK: - Whitespace-only values
+
+    @Test func singleSpaceIsSingleQuoted() {
+        #expect(store.shellEscape(" ") == "' '")
+    }
+
+    @Test func multipleSpacesIsSingleQuoted() {
+        #expect(store.shellEscape("   ") == "'   '")
+    }
+
+    @Test func tabOnlyUsesAnsiC() {
+        // Tab is 0x09 — a control char — so the $'...' path fires.
+        #expect(store.shellEscape("\t") == "$'\\t'")
+    }
+
+    @Test func mixedSpacesAndTabUsesAnsiC() {
+        #expect(store.shellEscape(" \t ") == "$' \\t '")
+    }
 }
 
 @Suite("Store.isValidEnvVarName")
@@ -535,6 +554,60 @@ struct ParseEnvFileTests {
         let result = try parse("A=1\nB=2")
         #expect(result["A"] == "1")
         #expect(result["B"] == "2")
+    }
+
+    // MARK: - Unicode values
+
+    @Test func unicodeValuePassesThrough() throws {
+        // Non-ASCII characters in values must be stored verbatim.
+        let result = try parse("KEY=héllo\n")
+        #expect(result["KEY"] == "héllo")
+    }
+
+    @Test func emojiValuePassesThrough() throws {
+        let result = try parse("KEY=🔑secret\n")
+        #expect(result["KEY"] == "🔑secret")
+    }
+
+    @Test func cjkValuePassesThrough() throws {
+        let result = try parse("KEY=日本語\n")
+        #expect(result["KEY"] == "日本語")
+    }
+
+    @Test func quotedUnicodeValuePassesThrough() throws {
+        let result = try parse("KEY=\"café au lait\"\n")
+        #expect(result["KEY"] == "café au lait")
+    }
+
+    // MARK: - Backslash sequences in double-quoted values are NOT interpolated
+
+    @Test func doubleQuotedBackslashNIsLiteral() throws {
+        // parseEnvFile does not interpret \n as newline — it stores the literal two chars.
+        let result = try parse("KEY=\"line1\\nline2\"\n")
+        #expect(result["KEY"] == "line1\\nline2")
+    }
+
+    @Test func doubleQuotedBackslashTIsLiteral() throws {
+        let result = try parse("KEY=\"col1\\tcol2\"\n")
+        #expect(result["KEY"] == "col1\\tcol2")
+    }
+
+    @Test func doubleQuotedEscapedQuoteIsLiteral() throws {
+        // \" inside double quotes is kept verbatim as the two chars \ and ".
+        let result = try parse("KEY=\"say \\\"hi\\\"\"\n")
+        #expect(result["KEY"] == "say \\\"hi\\\"")
+    }
+
+    // MARK: - Trailing whitespace in unquoted values
+
+    @Test func trailingWhitespaceStrippedFromUnquotedValue() throws {
+        let result = try parse("KEY=value   \n")
+        #expect(result["KEY"] == "value")
+    }
+
+    @Test func trailingTabStrippedFromUnquotedValue() throws {
+        let result = try parse("KEY=value\t\n")
+        #expect(result["KEY"] == "value")
     }
 }
 
