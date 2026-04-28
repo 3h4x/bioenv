@@ -67,3 +67,48 @@ eval "$(bioenv load)"
 ## Design Spec
 
 Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
+
+## Coding Conventions
+
+1. Swift 6.x strict concurrency is in effect — all new code must compile without concurrency warnings.
+2. Public API lives in `Sources/bioenvLib/`; the `Sources/bioenv/main.swift` executable is thin dispatch only — no business logic there.
+3. Declare `public` access on types/functions in `bioenvLib` that tests need; keep implementation details `internal` (default).
+4. Errors go to `fputs("Error: ...\n", stderr)`; success output and data go to `print()` / stdout. Never mix them.
+5. Use `throws` for all fallible operations; let `main.swift` catch and `exit(1)`.
+6. Argument parsing uses manual `CommandLine.arguments` — do not add `ArgumentParser` or any external dependency.
+7. Zero sensitive plaintext in memory beyond its point of use: always `defer { data.resetBytes(in: 0..<data.count) }` after decrypting secrets.
+8. Use `.write(to:options:.atomic)` for all `.enc` file writes to avoid partial writes.
+
+## Testing
+
+1. Run tests with `swift test`.
+2. Tests live in `Tests/bioenvTests/`; use the Swift Testing framework (`@Suite`, `@Test`, `#expect`).
+3. Test `bioenvLib` only — `main.swift` dispatch is not unit-tested.
+4. Do not mock Keychain or Touch ID; skip integration paths that require hardware. Mark them clearly if added.
+5. Use `FileManager.default.temporaryDirectory` + `UUID()` for temp files; always clean up with `defer { try? FileManager.default.removeItem(at: ...) }`.
+6. Run `swift test` before every commit.
+7. New public functions in `Store`, `Crypto`, or `Keychain` require corresponding tests.
+
+## Architecture
+
+1. All crypto operations go through `Crypto.swift` (CryptoKit AES-256-GCM only).
+2. All Keychain access goes through `Keychain.swift` (Security + LocalAuthentication frameworks).
+3. All encrypted-file I/O goes through `Store.swift`.
+4. Config (`~/.bioenv/config.json`) is managed exclusively by `Config.swift`.
+5. Never call `SecItem*` or `LAContext` directly from outside `Keychain.swift`.
+6. Project identity is always the SHA-256 of the absolute directory path, first 16 hex chars. Do not change this scheme — it would break existing stores.
+
+## Dependency & Supply-Chain Security
+
+1. This project intentionally has **zero external Swift Package dependencies**. Keep it that way.
+2. Only Apple system frameworks are permitted: `Security`, `LocalAuthentication`, `CryptoKit`, `Foundation`.
+3. If a new Swift package dependency is ever required, get explicit user approval, justify it in the commit message, and pin to a specific version tag in `Package.swift`.
+
+## Scope & Safety Rules
+
+1. Use conventional commits: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `ci:`, `breaking:` prefixes.
+2. Never bypass the pre-push hook (`--no-verify`). It runs `swift build` to catch compilation errors before they hit CI.
+3. `Version.swift` (`appVersion`) is auto-overwritten by CI during release. Do not edit it manually or commit a non-`"dev"` value.
+4. Release is triggered automatically on every push to `main` — ensure `swift test` and `swift build` pass before pushing.
+5. The `destroy` command is irreversible (deletes Keychain key + encrypted store). Always describe the consequence and require explicit user confirmation before suggesting or running it.
+6. Never commit `.env` files, `.env.local`, or any file containing real secrets.
