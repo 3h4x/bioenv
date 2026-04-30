@@ -29,6 +29,6 @@ public struct BioenvConfig: Codable, Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
         let data = try encoder.encode(self)
-        try data.write(to: URL(fileURLWithPath: path))
+        try data.write(to: URL(fileURLWithPath: path), options: .atomic)
     }
 }
