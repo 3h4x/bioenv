@@ -34,12 +34,18 @@ cp .build/release/bioenv ~/bin/
 
 ```
 Sources/bioenv/
-  main.swift       # CLI entry, argument parsing, command dispatch
-  Keychain.swift   # Keychain CRUD + Touch ID auth via LAContext (Security + LocalAuthentication frameworks)
-  Crypto.swift     # AES-256-GCM encrypt/decrypt (CryptoKit)
-  Store.swift      # Encrypted JSON file operations, .env parsing, shell escaping
-  Config.swift     # Configuration management (~/.bioenv/config.json)
-  Version.swift    # appVersion constant ("dev" locally, injected by CI at release time)
+  main.swift         # CLI entry, argument parsing, command dispatch (no business logic)
+Sources/bioenvLib/
+  Keychain.swift     # Keychain CRUD + Touch ID auth via LAContext (Security + LocalAuthentication frameworks)
+  Crypto.swift       # AES-256-GCM encrypt/decrypt (CryptoKit)
+  Store.swift        # Encrypted JSON file operations, .env parsing, shell escaping
+  Config.swift       # Configuration management (~/.bioenv/config.json)
+  Version.swift      # appVersion constant ("dev" locally, injected by CI at release time)
+Tests/bioenvTests/
+  KeychainTests.swift
+  CryptoTests.swift
+  StoreTests.swift
+  ConfigTests.swift
 ```
 
 ## Commands
