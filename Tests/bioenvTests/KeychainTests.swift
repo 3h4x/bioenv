@@ -105,7 +105,7 @@ struct KeychainCRUDTests {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: "encryption-key",
-            kSecAttrSynchronizable as String: kCFBooleanTrue!,
+            kSecAttrSynchronizable as String: true,
         ]
         #expect(SecItemCopyMatching(syncableQuery as CFDictionary, nil) == errSecItemNotFound)
 

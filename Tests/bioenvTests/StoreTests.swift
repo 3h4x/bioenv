@@ -579,6 +579,50 @@ struct ParseEnvFileTests {
         #expect(result["KEY"] == "café au lait")
     }
 
+    // MARK: - Quotes inside matching quotes
+
+    @Test func doubleQuotedValueContainingSingleQuote() throws {
+        // Double-quoted string with an embedded single quote must preserve it verbatim.
+        let result = try parse("KEY=\"it's a secret\"\n")
+        #expect(result["KEY"] == "it's a secret")
+    }
+
+    @Test func singleQuotedValueContainingDoubleQuote() throws {
+        // Single-quoted string with embedded double quotes must preserve them verbatim.
+        let result = try parse("KEY='say \"hi\"'\n")
+        #expect(result["KEY"] == "say \"hi\"")
+    }
+
+    @Test func singleQuotedValueContainingOnlyDoubleQuote() throws {
+        // A double quote char is the entire payload of a single-quoted string.
+        let result = try parse("KEY='\"'\n")
+        #expect(result["KEY"] == "\"")
+    }
+
+    @Test func doubleQuotedValueContainingOnlySingleQuote() throws {
+        // A single quote char is the entire payload of a double-quoted string.
+        let result = try parse("KEY=\"'\"\n")
+        #expect(result["KEY"] == "'")
+    }
+
+    @Test func singleCharValueIsSingleQuote() throws {
+        // value = ' (count 1) — not recognised as a quoted string, stored verbatim.
+        let result = try parse("KEY='\n")
+        #expect(result["KEY"] == "'")
+    }
+
+    @Test func singleCharValueIsDoubleQuote() throws {
+        // value = " (count 1) — not recognised as a quoted string, stored verbatim.
+        let result = try parse("KEY=\"\n")
+        #expect(result["KEY"] == "\"")
+    }
+
+    @Test func mismatchedQuotesDoubleOpenSingleClose() throws {
+        // Asymmetric quotes are not stripped — kept as the raw literal.
+        let result = try parse("KEY=\"mismatch'\n")
+        #expect(result["KEY"] == "\"mismatch'")
+    }
+
     // MARK: - Backslash sequences in double-quoted values are NOT interpolated
 
     @Test func doubleQuotedBackslashNIsLiteral() throws {
