@@ -94,12 +94,12 @@ struct CryptoTests {
 
     // MARK: - Key size sensitivity
 
-    @Test func mismatchedKeySizeFailsToDecrypt() throws {
+    @Test func shortDecryptionKeyThrowsInvalidKeySize() throws {
+        let fullKey = makeKey()
         let shortKey = makeKey(16)
-        let fullKey = makeKey(32)
-        let ciphertext = try Crypto.encrypt(data: Data("payload".utf8), key: shortKey)
+        let ciphertext = try Crypto.encrypt(data: Data("payload".utf8), key: fullKey)
         #expect(throws: (any Error).self) {
-            try Crypto.decrypt(data: ciphertext, key: fullKey)
+            try Crypto.decrypt(data: ciphertext, key: shortKey)
         }
     }
 
@@ -123,7 +123,7 @@ struct CryptoTests {
         }
     }
 
-    // MARK: - Invalid key sizes (AES requires 128, 192, or 256-bit keys)
+    // MARK: - Invalid key sizes (bioenv requires AES-256-GCM)
 
     @Test func encryptWith0ByteKeyThrows() {
         #expect(throws: (any Error).self) {
@@ -155,15 +155,15 @@ struct CryptoTests {
         }
     }
 
-    @Test func invalidKeySizeThrowsEncryptionFailed() throws {
+    @Test func invalidKeySizeThrowsInvalidKeySize() throws {
         do {
             _ = try Crypto.encrypt(data: Data("payload".utf8), key: Data([0x01]))
             Issue.record("Expected encryption to fail with 1-byte key")
         } catch let error as CryptoError {
-            if case .encryptionFailed = error {
-                // expected — CryptoKit rejects non-AES key sizes; our wrapper surfaces them as .encryptionFailed
+            if case .invalidKeySize(1) = error {
+                // expected
             } else {
-                Issue.record("Expected .encryptionFailed, got \(error)")
+                Issue.record("Expected .invalidKeySize(1), got \(error)")
             }
         } catch {
             Issue.record("Expected CryptoError, got \(error)")
@@ -171,8 +171,7 @@ struct CryptoTests {
     }
 
     @Test func decryptWith1ByteKeyThrows() throws {
-        // Valid ciphertext produced with a 16-byte key; decrypting with a 1-byte key must fail.
-        let validKey = makeKey(16)
+        let validKey = makeKey()
         let ciphertext = try Crypto.encrypt(data: Data("secret".utf8), key: validKey)
         #expect(throws: (any Error).self) {
             try Crypto.decrypt(data: ciphertext, key: Data([0x42]))
@@ -187,22 +186,23 @@ struct CryptoTests {
         }
     }
 
-    @Test func valid16ByteKeyRoundTrips() throws {
-        // AES-128-GCM is valid — 16-byte key should work end-to-end.
+    @Test func sixteenByteKeyThrowsInvalidKeySize() {
         let key = makeKey(16)
-        let plaintext = Data("aes128 works".utf8)
-        let ciphertext = try Crypto.encrypt(data: plaintext, key: key)
-        let decrypted = try Crypto.decrypt(data: ciphertext, key: key)
-        #expect(decrypted == plaintext)
+        #expect(throws: (any Error).self) {
+            try Crypto.encrypt(data: Data("aes128 is not allowed".utf8), key: key)
+        }
     }
 
-    @Test func valid24ByteKeyRoundTrips() throws {
-        // AES-192-GCM is valid — 24-byte key should work end-to-end.
+    @Test func twentyFourByteKeyThrowsInvalidKeySize() {
         let key = makeKey(24)
-        let plaintext = Data("aes192 works".utf8)
-        let ciphertext = try Crypto.encrypt(data: plaintext, key: key)
-        let decrypted = try Crypto.decrypt(data: ciphertext, key: key)
-        #expect(decrypted == plaintext)
+        #expect(throws: (any Error).self) {
+            try Crypto.encrypt(data: Data("aes192 is not allowed".utf8), key: key)
+        }
+    }
+
+    @Test func invalidKeySizeDescriptionContainsExpectedAndActualSizes() {
+        let err = CryptoError.invalidKeySize(24)
+        #expect(err.description == "Invalid key size: expected 32 bytes for AES-256-GCM, got 24")
     }
 
     // MARK: - Error descriptions
