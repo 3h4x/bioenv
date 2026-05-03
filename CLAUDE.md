@@ -58,6 +58,8 @@ bioenv load              # Print export statements for all secrets (Touch ID)
 bioenv import FILE       # Bulk import from .env file (Touch ID)
 bioenv list              # List key names (Touch ID)
 bioenv remove KEY        # Remove a secret (Touch ID)
+bioenv status            # Show status for current directory
+bioenv destroy           # Delete Keychain key and encrypted store (irreversible)
 bioenv config            # Show current configuration
 bioenv config sync on|off  # Enable/disable iCloud Keychain sync (default: off, requires Apple Developer cert)
 bioenv version             # Show installed version
@@ -84,6 +86,9 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 6. Argument parsing uses manual `CommandLine.arguments` — do not add `ArgumentParser` or any external dependency.
 7. Zero sensitive plaintext in memory beyond its point of use: always `defer { data.resetBytes(in: 0..<data.count) }` after decrypting secrets.
 8. Use `.write(to:options:.atomic)` for all `.enc` file writes to avoid partial writes.
+9. Name library files after their primary type or concern in UpperCamelCase (`Store.swift`, `Keychain.swift`, etc.); keep the executable entrypoint at `Sources/bioenv/main.swift`.
+10. Keep imports minimal and explicit to the frameworks a file actually uses; do not add umbrella layers or helper dependencies to hide `Foundation`, `CryptoKit`, `Security`, or `LocalAuthentication`.
+11. Keep command names, usage text, and user-facing behavior synchronized across `Sources/bioenv/main.swift`, `README.md`, and the Commands section here whenever the CLI changes.
 
 ## Testing
 
@@ -94,6 +99,8 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 5. Use `FileManager.default.temporaryDirectory` + `UUID()` for temp files; always clean up with `defer { try? FileManager.default.removeItem(at: ...) }`.
 6. Run `swift test` before every commit.
 7. New public functions in `Store`, `Crypto`, or `Keychain` require corresponding tests.
+8. Name test files by the production area they cover (`StoreTests.swift`, `CryptoTests.swift`, etc.) and group related assertions with `@Suite` blocks around one behavior or API surface.
+9. Prefer regression tests for parsing, quoting, crypto, and error-reporting edge cases when fixing bugs; these have been the highest-churn areas in recent commits.
 
 ## Architecture
 
@@ -103,12 +110,14 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 4. Config (`~/.bioenv/config.json`) is managed exclusively by `Config.swift`.
 5. Never call `SecItem*` or `LAContext` directly from outside `Keychain.swift`.
 6. Project identity is always the SHA-256 of the absolute directory path, first 16 hex chars. Do not change this scheme — it would break existing stores.
+7. Environment-variable validation and shell escaping rules are centralized in `Store.swift`; do not duplicate export formatting or `.env` parsing logic in `main.swift` or tests.
 
 ## Dependency & Supply-Chain Security
 
 1. This project intentionally has **zero external Swift Package dependencies**. Keep it that way.
 2. Only Apple system frameworks are permitted: `Security`, `LocalAuthentication`, `CryptoKit`, `Foundation`.
 3. If a new Swift package dependency is ever required, get explicit user approval, justify it in the commit message, and pin to a specific version tag in `Package.swift`.
+4. Because there is no lockfile in this repo, treat any manifest change as supply-chain sensitive: do not add packages, build plugins, or generator tooling without explicit approval and a follow-up audit plan.
 
 ## Scope & Safety Rules
 
@@ -118,3 +127,4 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 4. Release is triggered automatically on every push to `main` — ensure `swift test` and `swift build` pass before pushing.
 5. The `destroy` command is irreversible (deletes Keychain key + encrypted store). Always describe the consequence and require explicit user confirmation before suggesting or running it.
 6. Never commit `.env` files, `.env.local`, or any file containing real secrets.
+7. Do not let documentation drift after CLI changes: if you add, remove, or rename a command or flag, update `README.md` and `CLAUDE.md` in the same change.

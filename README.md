@@ -110,6 +110,8 @@ Now when you `cd` into the project, direnv triggers `bioenv load`, Touch ID prom
 | `bioenv import FILE` | Yes | Bulk import from a `.env` file |
 | `bioenv list` | Yes | List secret names (no values) |
 | `bioenv remove KEY` | Yes | Delete a secret |
+| `bioenv status` | No* | Show status for the current directory and prompt only if counting secrets |
+| `bioenv destroy` | No | Delete the Keychain key and encrypted store after explicit confirmation |
 | `bioenv config` | No | Show current configuration |
 | `bioenv config sync on\|off` | No | Toggle iCloud Keychain sync (default: off) |
 | `bioenv version` | No | Show installed version |
