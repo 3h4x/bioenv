@@ -236,6 +236,6 @@ do {
         exit(1)
     }
 } catch {
-    fputs("Error: \(error)\n", stderr)
+    fputs("Error: \(ErrorFormatting.userMessage(for: error))\n", stderr)
     exit(1)
 }
