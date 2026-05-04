@@ -89,6 +89,10 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 9. Name library files after their primary type or concern in UpperCamelCase (`Store.swift`, `Keychain.swift`, etc.); keep the executable entrypoint at `Sources/bioenv/main.swift`.
 10. Keep imports minimal and explicit to the frameworks a file actually uses; do not add umbrella layers or helper dependencies to hide `Foundation`, `CryptoKit`, `Security`, or `LocalAuthentication`.
 11. Keep command names, usage text, and user-facing behavior synchronized across `Sources/bioenv/main.swift`, `README.md`, and the Commands section here whenever the CLI changes.
+12. Match the current package baseline in `Package.swift`: Swift tools 6.0 and `platforms: [.macOS(.v14)]`. Do not add compatibility shims or older deployment targets unless the user asks for them.
+13. Keep library code responsible for throwing structured errors; centralize user-facing error translation in `Sources/bioenvLib/ErrorFormatting.swift` instead of formatting ad hoc messages across commands.
+14. There is no formatter or linter config in this repo today. Preserve the existing style manually and do not add `swift-format`, SwiftLint, or similar tooling without explicit approval.
+15. Prefer `struct`, `enum`, and static helpers for library code; only introduce reference types when a framework callback or shared mutable state truly requires one.
 
 ## Testing
 
@@ -101,6 +105,8 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 7. New public functions in `Store`, `Crypto`, or `Keychain` require corresponding tests.
 8. Name test files by the production area they cover (`StoreTests.swift`, `CryptoTests.swift`, etc.) and group related assertions with `@Suite` blocks around one behavior or API surface.
 9. Prefer regression tests for parsing, quoting, crypto, and error-reporting edge cases when fixing bugs; these have been the highest-churn areas in recent commits.
+10. If you change user-visible failure wording or add a new error-mapping path, extend `Tests/bioenvTests/ErrorFormattingTests.swift` in the same change.
+11. Skip unit tests for raw CLI usage/help text in `main.swift` unless that logic is first moved into `bioenvLib`.
 
 ## Architecture
 
@@ -111,6 +117,9 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 5. Never call `SecItem*` or `LAContext` directly from outside `Keychain.swift`.
 6. Project identity is always the SHA-256 of the absolute directory path, first 16 hex chars. Do not change this scheme — it would break existing stores.
 7. Environment-variable validation and shell escaping rules are centralized in `Store.swift`; do not duplicate export formatting or `.env` parsing logic in `main.swift` or tests.
+8. Keep `main.swift` limited to argument dispatch, confirmation prompts, and stdout/stderr output. Reusable validation, file parsing, and stateful logic belong in `bioenvLib`.
+9. Centralize user-facing error normalization in `ErrorFormatting.swift`; do not duplicate `NSError`, `DecodingError`, or `OSStatus` message mapping in commands or tests.
+10. New shared production code belongs under `Sources/bioenvLib/`, and matching tests belong under `Tests/bioenvTests/` with a file name that matches the production concern.
 
 ## Dependency & Supply-Chain Security
 
@@ -118,6 +127,8 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 2. Only Apple system frameworks are permitted: `Security`, `LocalAuthentication`, `CryptoKit`, `Foundation`.
 3. If a new Swift package dependency is ever required, get explicit user approval, justify it in the commit message, and pin to a specific version tag in `Package.swift`.
 4. Because there is no lockfile in this repo, treat any manifest change as supply-chain sensitive: do not add packages, build plugins, or generator tooling without explicit approval and a follow-up audit plan.
+5. Do not add non-SwiftPM ecosystem manifests or installers (`package.json`, `Brewfile`, `Mintfile`, etc.) without explicit approval; this repo currently builds with SwiftPM and system tools only.
+6. If a dependency exception is approved, inspect SwiftPM package plugins, macros, and any build-time code generation before adoption; treat them like executable code with the same review bar as a new binary.
 
 ## Scope & Safety Rules
 
