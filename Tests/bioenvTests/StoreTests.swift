@@ -266,6 +266,38 @@ struct EnvVarNameTests {
     }
 }
 
+@Suite("Store.init")
+struct StoreInitTests {
+    @Test func relativeProjectPathIsNormalizedToAbsolutePath() {
+        let currentDirectory = FileManager.default.currentDirectoryPath
+        let store = Store(projectPath: ".")
+
+        #expect(store.projectPath == currentDirectory)
+    }
+
+    @Test func equivalentRelativeAndAbsoluteProjectPathsProduceSameProjectHash() {
+        let currentDirectory = FileManager.default.currentDirectoryPath
+        let absoluteStore = Store(projectPath: currentDirectory, storeDir: "/tmp/bioenv-store-tests")
+        let relativeStore = Store(projectPath: "./.", storeDir: "/tmp/bioenv-store-tests")
+
+        #expect(relativeStore.projectPath == currentDirectory)
+        #expect(relativeStore.projectHash == absoluteStore.projectHash)
+        #expect(relativeStore.storePath == absoluteStore.storePath)
+    }
+
+    @Test func parentDirectorySegmentsAreCollapsedBeforeHashing() {
+        let currentDirectory = FileManager.default.currentDirectoryPath
+        let pathWithParentSegments = ((currentDirectory as NSString).appendingPathComponent("..") as NSString)
+            .appendingPathComponent((currentDirectory as NSString).lastPathComponent)
+
+        let canonicalStore = Store(projectPath: currentDirectory)
+        let nonCanonicalStore = Store(projectPath: pathWithParentSegments)
+
+        #expect(nonCanonicalStore.projectPath == currentDirectory)
+        #expect(nonCanonicalStore.projectHash == canonicalStore.projectHash)
+    }
+}
+
 @Suite("Store.parseEnvFile")
 struct ParseEnvFileTests {
     /// Write `content` to a temp file, parse it, return the result.

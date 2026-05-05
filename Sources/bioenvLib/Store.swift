@@ -25,7 +25,7 @@ public struct Store {
     public let storePath: String
 
     public init(projectPath: String? = nil, storeDir: String? = nil) {
-        let path = projectPath ?? FileManager.default.currentDirectoryPath
+        let path = Self.normalizeProjectPath(projectPath ?? FileManager.default.currentDirectoryPath)
         self.projectPath = path
 
         let hash = SHA256.hash(data: Data(path.utf8))
@@ -36,6 +36,17 @@ public struct Store {
             return "\(homeDir)/.bioenv"
         }()
         self.storePath = "\(dir)/\(self.projectHash).enc"
+    }
+
+    private static func normalizeProjectPath(_ path: String) -> String {
+        let expandedPath = (path as NSString).expandingTildeInPath
+        if (expandedPath as NSString).isAbsolutePath {
+            return (expandedPath as NSString).standardizingPath
+        }
+
+        let absolutePath = (FileManager.default.currentDirectoryPath as NSString)
+            .appendingPathComponent(expandedPath)
+        return (absolutePath as NSString).standardizingPath
     }
 
     public func ensureStoreDirectory() throws {
