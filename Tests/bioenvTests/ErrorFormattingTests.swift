@@ -44,6 +44,19 @@ struct ErrorFormattingTests {
         #expect(ErrorFormatting.userMessage(for: error) == "File not found: /tmp/.env")
     }
 
+    @Test func envFileParseErrorsStaySpecific() {
+        let error = EnvFileParseError(
+            path: "/tmp/.env",
+            line: 7,
+            key: "PRIVATE_KEY",
+            message: "unterminated quoted value"
+        )
+        #expect(
+            ErrorFormatting.userMessage(for: error) ==
+            "Invalid .env file at /tmp/.env:7 for key 'PRIVATE_KEY': unterminated quoted value"
+        )
+    }
+
     @Test func unrelatedErrorsFallBackToLocalizedDescription() {
         struct SampleError: LocalizedError {
             var errorDescription: String? { "sample failure" }

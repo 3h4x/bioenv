@@ -361,6 +361,16 @@ struct ParseEnvFileTests {
         #expect(result["KEY"] == "value # not a comment")
     }
 
+    @Test func singleQuotedValueWithInlineCommentStripsComment() throws {
+        let result = try parse("KEY='hello world' # comment\n")
+        #expect(result["KEY"] == "hello world")
+    }
+
+    @Test func doubleQuotedValueWithInlineCommentStripsComment() throws {
+        let result = try parse("KEY=\"hello world\" # comment\n")
+        #expect(result["KEY"] == "hello world")
+    }
+
     @Test func emptyDoubleQuotedValue() throws {
         let result = try parse("KEY=\"\"\n")
         #expect(result["KEY"] == "")
@@ -423,10 +433,10 @@ struct ParseEnvFileTests {
         #expect(result["KEY"] == "value")
     }
 
-    @Test func mismatchedQuotesKeptVerbatim() throws {
-        // Single-open / double-close is not a quoted value; treat as unquoted literal.
-        let result = try parse("KEY='mismatch\"\n")
-        #expect(result["KEY"] == "'mismatch\"")
+    @Test func mismatchedQuotesThrowParseError() {
+        #expect(throws: EnvFileParseError.self) {
+            try parse("KEY='mismatch\"\n")
+        }
     }
 
     @Test func unquotedHashOnlyValue() throws {
@@ -440,6 +450,60 @@ struct ParseEnvFileTests {
         let result = try parse("café=value\nVALID=ok\n")
         #expect(result["café"] == nil)
         #expect(result["VALID"] == "ok")
+    }
+
+    @Test func invalidKeyWithMalformedQuotedValueDoesNotBlockFollowingValidKey() throws {
+        let result = try parse("HAS-DASH='mismatch\"\nVALID=ok\n")
+        #expect(result["HAS-DASH"] == nil)
+        #expect(result["VALID"] == "ok")
+    }
+
+    @Test func invalidKeyWithQuotedMultilineValueSkipsWholeRecord() throws {
+        let result = try parse("HAS-DASH='line1\nline2'\nVALID=ok\n")
+        #expect(result["HAS-DASH"] == nil)
+        #expect(result["VALID"] == "ok")
+    }
+
+    @Test func invalidKeyWithQuotedMultilineValueDoesNotImportInnerAssignments() throws {
+        let result = try parse("HAS-DASH='line1\nINNER=shadow\nline3'\nVALID=ok\n")
+        #expect(result["HAS-DASH"] == nil)
+        #expect(result["INNER"] == nil)
+        #expect(result["VALID"] == "ok")
+    }
+
+    @Test func invalidKeyWithQuotedMultilineValueContainingOtherQuoteSkipsWholeRecord() throws {
+        let result = try parse("HAS-DASH='line1 \" note\nINNER=shadow\nline3'\nVALID=ok\n")
+        #expect(result["HAS-DASH"] == nil)
+        #expect(result["INNER"] == nil)
+        #expect(result["VALID"] == "ok")
+    }
+
+    @Test func invalidKeyWithDoubleQuotedInnerLineEndingInQuoteDoesNotImportInnerAssignments() throws {
+        let result = try parse("HAS-DASH=\"line1\nsay \"hi\"\nINNER=shadow\nline3\"\nVALID=ok\n")
+        #expect(result["HAS-DASH"] == nil)
+        #expect(result["INNER"] == nil)
+        #expect(result["VALID"] == "ok")
+    }
+
+    @Test func invalidKeyWithSingleQuotedInnerLineEndingInQuoteDoesNotImportInnerAssignments() throws {
+        let result = try parse("HAS-DASH='line1\nsay 'hi'\nINNER=shadow\nline3'\nVALID=ok\n")
+        #expect(result["HAS-DASH"] == nil)
+        #expect(result["INNER"] == nil)
+        #expect(result["VALID"] == "ok")
+    }
+
+    @Test func invalidKeyWithUnterminatedQuotedMultilineValueDoesNotImportInnerAssignments() throws {
+        let result = try parse("HAS-DASH='line1\nINNER=shadow\nVALID=ok\n")
+        #expect(result["HAS-DASH"] == nil)
+        #expect(result["INNER"] == nil)
+        #expect(result["VALID"] == nil)
+    }
+
+    @Test func invalidKeyWithSingleQuotedBackslashBeforeClosingQuotePreservesFollowingKeys() throws {
+        let result = try parse("HAS-DASH='line1\nabc\\'\nVALID=ok\nNEXT=yo\n")
+        #expect(result["HAS-DASH"] == nil)
+        #expect(result["VALID"] == "ok")
+        #expect(result["NEXT"] == "yo")
     }
 
     @Test func singleCharKey() throws {
@@ -579,6 +643,51 @@ struct ParseEnvFileTests {
         #expect(result["KEY"] == "café au lait")
     }
 
+    @Test func physicalMultilineDoubleQuotedValuePreservesNewlines() throws {
+        let result = try parse("KEY=\"line1\nline2\"\n")
+        #expect(result["KEY"] == "line1\nline2")
+    }
+
+    @Test func physicalMultilineSingleQuotedValuePreservesIndentedLines() throws {
+        let result = try parse("KEY='line1\n  line2'\n")
+        #expect(result["KEY"] == "line1\n  line2")
+    }
+
+    @Test func physicalMultilineDoubleQuotedValueAllowsClosingLineComment() throws {
+        let result = try parse("KEY=\"line1\nline2\" # comment\n")
+        #expect(result["KEY"] == "line1\nline2")
+    }
+
+    @Test func physicalMultilineDoubleQuotedValuePreservesEscapedQuotes() throws {
+        let result = try parse("KEY=\"line1\nsay \\\"hi\\\"\nline3\"\n")
+        #expect(result["KEY"] == "line1\nsay \\\"hi\\\"\nline3")
+    }
+
+    @Test func physicalMultilineDoubleQuotedValueWithInnerLineEndingInQuotePreservesWholeValue() throws {
+        let result = try parse("KEY=\"line1\nsay \"hi\"\nline3\"\n")
+        #expect(result["KEY"] == "line1\nsay \"hi\"\nline3")
+    }
+
+    @Test func physicalMultilineSingleQuotedValueAllowsClosingLineComment() throws {
+        let result = try parse("KEY='line1\n  line2' # comment\n")
+        #expect(result["KEY"] == "line1\n  line2")
+    }
+
+    @Test func physicalMultilineSingleQuotedValueWithInnerLineEndingInQuotePreservesWholeValue() throws {
+        let result = try parse("KEY='line1\nsay 'hi'\nline3'\n")
+        #expect(result["KEY"] == "line1\nsay 'hi'\nline3")
+    }
+
+    @Test func singleQuotedValueEndingInBackslashPreservesBackslash() throws {
+        let result = try parse("KEY='abc\\'\n")
+        #expect(result["KEY"] == "abc\\")
+    }
+
+    @Test func physicalMultilineSingleQuotedValueEndingInBackslashPreservesBackslash() throws {
+        let result = try parse("KEY='line1\nabc\\'\n")
+        #expect(result["KEY"] == "line1\nabc\\")
+    }
+
     // MARK: - Quotes inside matching quotes
 
     @Test func doubleQuotedValueContainingSingleQuote() throws {
@@ -605,22 +714,28 @@ struct ParseEnvFileTests {
         #expect(result["KEY"] == "'")
     }
 
-    @Test func singleCharValueIsSingleQuote() throws {
-        // value = ' (count 1) — not recognised as a quoted string, stored verbatim.
-        let result = try parse("KEY='\n")
-        #expect(result["KEY"] == "'")
+    @Test func singleCharValueIsSingleQuoteThrows() {
+        #expect(throws: EnvFileParseError.self) {
+            try parse("KEY='\n")
+        }
     }
 
-    @Test func singleCharValueIsDoubleQuote() throws {
-        // value = " (count 1) — not recognised as a quoted string, stored verbatim.
-        let result = try parse("KEY=\"\n")
-        #expect(result["KEY"] == "\"")
+    @Test func singleCharValueIsDoubleQuoteThrows() {
+        #expect(throws: EnvFileParseError.self) {
+            try parse("KEY=\"\n")
+        }
     }
 
-    @Test func mismatchedQuotesDoubleOpenSingleClose() throws {
-        // Asymmetric quotes are not stripped — kept as the raw literal.
-        let result = try parse("KEY=\"mismatch'\n")
-        #expect(result["KEY"] == "\"mismatch'")
+    @Test func mismatchedQuotesDoubleOpenSingleCloseThrows() {
+        #expect(throws: EnvFileParseError.self) {
+            try parse("KEY=\"mismatch'\n")
+        }
+    }
+
+    @Test func unterminatedPhysicalMultilineQuotedValueThrows() {
+        #expect(throws: EnvFileParseError.self) {
+            try parse("KEY=\"line1\nline2\n")
+        }
     }
 
     // MARK: - Backslash sequences in double-quoted values are NOT interpolated
@@ -640,6 +755,12 @@ struct ParseEnvFileTests {
         // \" inside double quotes is kept verbatim as the two chars \ and ".
         let result = try parse("KEY=\"say \\\"hi\\\"\"\n")
         #expect(result["KEY"] == "say \\\"hi\\\"")
+    }
+
+    @Test func doubleQuotedValueEndingInEscapedQuoteThrows() {
+        #expect(throws: EnvFileParseError.self) {
+            try parse("KEY=\"abc\\\"\n")
+        }
     }
 
     // MARK: - Trailing whitespace in unquoted values

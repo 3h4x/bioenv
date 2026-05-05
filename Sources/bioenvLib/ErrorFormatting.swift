@@ -3,6 +3,10 @@ import Security
 
 public enum ErrorFormatting {
     public static func userMessage(for error: any Error) -> String {
+        if let envFileError = error as? EnvFileParseError {
+            return envFileError.description
+        }
+
         if let keychainError = error as? KeychainError {
             return formatKeychainError(keychainError)
         }

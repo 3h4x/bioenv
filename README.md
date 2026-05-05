@@ -81,6 +81,7 @@ rm .env.local
 Your secrets are now encrypted. The `.env.local` file is gone, but everything works exactly the same — direnv still loads your env vars automatically, the only difference is a Touch ID prompt.
 
 This also works with `.env`, `.env.development`, or any file in `KEY=VALUE` format.
+Quoted multiline values are supported during import; unterminated quoted values fail with a line-specific error instead of importing partial data.
 
 ## direnv Integration
 

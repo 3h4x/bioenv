@@ -1,6 +1,24 @@
 import Foundation
 import CryptoKit
 
+public struct EnvFileParseError: Error, CustomStringConvertible {
+    public let path: String
+    public let line: Int
+    public let key: String
+    public let message: String
+
+    public init(path: String, line: Int, key: String, message: String) {
+        self.path = path
+        self.line = line
+        self.key = key
+        self.message = message
+    }
+
+    public var description: String {
+        "Invalid .env file at \(path):\(line) for key '\(key)': \(message)"
+    }
+}
+
 public struct Store {
     public let projectPath: String
     public let projectHash: String
@@ -114,42 +132,236 @@ public struct Store {
         // Windows editors commonly prepend a UTF-8 BOM (\u{FEFF}); without stripping it
         // the first key becomes "\u{FEFF}KEY" which fails POSIX validation and is silently skipped.
         if content.hasPrefix("\u{FEFF}") { content = String(content.dropFirst()) }
+        content = content.replacingOccurrences(of: "\r\n", with: "\n")
+        content = content.replacingOccurrences(of: "\r", with: "\n")
         var result: [String: String] = [:]
+        let lines = content.components(separatedBy: "\n")
+        var lineIndex = 0
 
-        for line in content.components(separatedBy: .newlines) {
+        while lineIndex < lines.count {
+            let line = lines[lineIndex]
             var trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            if trimmed.isEmpty || trimmed.hasPrefix("#") {
+                lineIndex += 1
+                continue
+            }
 
             // Strip "export " prefix
             if trimmed.hasPrefix("export ") {
                 trimmed = String(trimmed.dropFirst(7)).trimmingCharacters(in: .whitespaces)
             }
 
-            guard let equalsIndex = trimmed.firstIndex(of: "=") else { continue }
-
-            let key = String(trimmed[trimmed.startIndex..<equalsIndex]).trimmingCharacters(in: .whitespaces)
-            var value = String(trimmed[trimmed.index(after: equalsIndex)...]).trimmingCharacters(in: .whitespaces)
-
-            // Strip surrounding quotes (keeps everything inside verbatim, including # characters).
-            if value.count >= 2 &&
-               ((value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-                (value.hasPrefix("'") && value.hasSuffix("'"))) {
-                value = String(value.dropFirst().dropLast())
-            } else {
-                // Unquoted value: strip trailing inline comment (whitespace + #).
-                // e.g. KEY=value # my comment  →  value
-                if let commentRange = value.range(of: #"\s+#.*$"#, options: .regularExpression) {
-                    value = String(value[value.startIndex..<commentRange.lowerBound])
-                }
+            guard let equalsIndex = trimmed.firstIndex(of: "=") else {
+                lineIndex += 1
+                continue
             }
 
+            let key = String(trimmed[trimmed.startIndex..<equalsIndex]).trimmingCharacters(in: .whitespaces)
+            let rawValue = String(trimmed[trimmed.index(after: equalsIndex)...])
+
             if isValidEnvVarName(key) {
+                let value = try parseEnvValue(
+                    rawValue,
+                    path: path,
+                    key: key,
+                    lineIndex: &lineIndex,
+                    lines: lines
+                )
                 result[key] = value
             } else if !key.isEmpty {
                 fputs("warning: skipping invalid key '\(key)' (must match [A-Za-z_][A-Za-z0-9_]*)\n", stderr)
+                skipInvalidValueRecord(
+                    rawValue,
+                    lineIndex: &lineIndex,
+                    lines: lines
+                )
             }
+
+            lineIndex += 1
         }
 
         return result
     }
+
+    private static func parseEnvValue(
+        _ rawValue: String,
+        path: String,
+        key: String,
+        lineIndex: inout Int,
+        lines: [String]
+    ) throws -> String {
+        let value = rawValue.trimmingCharacters(in: .whitespaces)
+        guard let openingQuote = value.first, openingQuote == "\"" || openingQuote == "'" else {
+            return stripInlineComment(from: value)
+        }
+
+        if let singleLineValue = extractClosedQuotedValue(from: value, openingQuote: openingQuote) {
+            return singleLineValue
+        }
+
+        let startLine = lineIndex + 1
+        var multilineLines = [String(value.dropFirst())]
+
+        while lineIndex + 1 < lines.count {
+            lineIndex += 1
+            let continuation = lines[lineIndex]
+
+            if let closingLineValue = extractClosingQuotedLineValue(from: continuation, openingQuote: openingQuote) {
+                multilineLines.append(closingLineValue)
+                return multilineLines.joined(separator: "\n")
+            }
+
+            multilineLines.append(continuation)
+        }
+
+        throw EnvFileParseError(
+            path: path,
+            line: startLine,
+            key: key,
+            message: "unterminated quoted value"
+        )
+    }
+
+    private static func skipInvalidValueRecord(
+        _ rawValue: String,
+        lineIndex: inout Int,
+        lines: [String]
+    ) {
+        let value = rawValue.trimmingCharacters(in: .whitespaces)
+        guard let openingQuote = value.first, openingQuote == "\"" || openingQuote == "'" else {
+            return
+        }
+
+        if extractClosedQuotedValue(from: value, openingQuote: openingQuote) != nil {
+            return
+        }
+
+        var probeIndex = lineIndex + 1
+        while probeIndex < lines.count {
+            let continuation = lines[probeIndex]
+
+            if extractClosingQuotedLineValue(from: continuation, openingQuote: openingQuote) != nil {
+                lineIndex = probeIndex
+                return
+            }
+
+            probeIndex += 1
+        }
+
+        // If the opening line already contains another quote character, treat it as a
+        // malformed single-line record and skip only that physical line. This preserves
+        // later valid assignments instead of consuming the rest of the file.
+        if value.dropFirst().contains(where: { $0 == "\"" || $0 == "'" }) {
+            return
+        }
+
+        // No closing quote was found. Consume the rest of the file so lines inside
+        // the skipped invalid record are never reparsed as top-level assignments.
+        lineIndex = lines.count - 1
+    }
+
+    private static func stripInlineComment(from value: String) -> String {
+        // Unquoted value: strip trailing inline comment (whitespace + #).
+        // e.g. KEY=value # my comment  →  value
+        if let commentRange = value.range(of: #"\s+#.*$"#, options: .regularExpression) {
+            return String(value[value.startIndex..<commentRange.lowerBound])
+        }
+        return value
+    }
+
+    private static func extractClosedQuotedValue(from value: String, openingQuote: Character) -> String? {
+        guard value.first == openingQuote else { return nil }
+        let start = value.index(after: value.startIndex)
+        guard let closingIndex = lastUnescapedClosingQuoteIndex(
+            in: value,
+            openingQuote: openingQuote,
+            searchStart: start
+        ) else { return nil }
+        return String(value[start..<closingIndex])
+    }
+
+    private static func extractClosingQuotedLineValue(from value: String, openingQuote: Character) -> String? {
+        guard let closingIndex = lastMultilineClosingQuoteIndex(
+            in: value,
+            openingQuote: openingQuote,
+            searchStart: value.startIndex
+        ) else { return nil }
+        return String(value[value.startIndex..<closingIndex])
+    }
+
+    private static func hasOnlyTrailingWhitespaceOrComment(_ suffix: Substring) -> Bool {
+        guard let firstNonWhitespace = suffix.firstIndex(where: { !$0.isWhitespace }) else {
+            return true
+        }
+
+        return suffix[firstNonWhitespace] == "#"
+    }
+
+    private static func lastUnescapedClosingQuoteIndex(
+        in value: String,
+        openingQuote: Character,
+        searchStart: String.Index
+    ) -> String.Index? {
+        var candidate: String.Index?
+        var index = searchStart
+
+        while index < value.endIndex {
+            if value[index] == openingQuote && !isClosingQuoteEscaped(index, in: value, openingQuote: openingQuote) {
+                let suffix = value[value.index(after: index)...]
+                if hasOnlyTrailingWhitespaceOrComment(suffix) {
+                    candidate = index
+                }
+            }
+
+            index = value.index(after: index)
+        }
+
+        return candidate
+    }
+
+    private static func lastMultilineClosingQuoteIndex(
+        in value: String,
+        openingQuote: Character,
+        searchStart: String.Index
+    ) -> String.Index? {
+        var closingIndex: String.Index?
+        var unescapedQuoteCount = 0
+        var index = searchStart
+
+        while index < value.endIndex {
+            if value[index] == openingQuote && !isClosingQuoteEscaped(index, in: value, openingQuote: openingQuote) {
+                unescapedQuoteCount += 1
+                let suffix = value[value.index(after: index)...]
+                if hasOnlyTrailingWhitespaceOrComment(suffix) {
+                    closingIndex = index
+                }
+            }
+
+            index = value.index(after: index)
+        }
+
+        guard unescapedQuoteCount == 1 else { return nil }
+        return closingIndex
+    }
+
+    private static func isClosingQuoteEscaped(
+        _ index: String.Index,
+        in value: String,
+        openingQuote: Character
+    ) -> Bool {
+        guard openingQuote == "\"" else { return false }
+
+        var backslashCount = 0
+        var probe = index
+
+        while probe > value.startIndex {
+            let previous = value.index(before: probe)
+            guard value[previous] == "\\" else { break }
+            backslashCount += 1
+            probe = previous
+        }
+
+        return backslashCount.isMultiple(of: 2) == false
+    }
+
 }

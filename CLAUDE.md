@@ -53,6 +53,7 @@ Tests/bioenvTests/
 ```
 bioenv init              # Create encryption key in Keychain for current directory (no Touch ID)
 bioenv set KEY VALUE     # Add/update a secret (Touch ID)
+bioenv set KEY           # Add/update a secret — reads VALUE from stdin (Touch ID)
 bioenv get KEY           # Get single secret (Touch ID)
 bioenv load              # Print export statements for all secrets (Touch ID)
 bioenv import FILE       # Bulk import from .env file (Touch ID)
@@ -63,6 +64,8 @@ bioenv destroy           # Delete Keychain key and encrypted store (irreversible
 bioenv config            # Show current configuration
 bioenv config sync on|off  # Enable/disable iCloud Keychain sync (default: off, requires Apple Developer cert)
 bioenv version             # Show installed version
+bioenv --version           # Alias for version
+bioenv help | --help | -h  # Show usage text
 ```
 
 ## direnv Integration
@@ -93,6 +96,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 13. Keep library code responsible for throwing structured errors; centralize user-facing error translation in `Sources/bioenvLib/ErrorFormatting.swift` instead of formatting ad hoc messages across commands.
 14. There is no formatter or linter config in this repo today. Preserve the existing style manually and do not add `swift-format`, SwiftLint, or similar tooling without explicit approval.
 15. Prefer `struct`, `enum`, and static helpers for library code; only introduce reference types when a framework callback or shared mutable state truly requires one.
+16. `Store.parseEnvFile` supports multiline quoted values (single or double), normalizes `\r\n`/`\r` to `\n`, strips UTF-8 BOM, and throws `EnvFileParseError` for unterminated quoted values. Invalid key names produce a stderr warning and are silently skipped (not a thrown error). Do not weaken or change this contract without updating `StoreTests.swift` and the `ErrorFormattingTests.swift` entry for `EnvFileParseError`.
 
 ## Testing
 
@@ -120,6 +124,8 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 8. Keep `main.swift` limited to argument dispatch, confirmation prompts, and stdout/stderr output. Reusable validation, file parsing, and stateful logic belong in `bioenvLib`.
 9. Centralize user-facing error normalization in `ErrorFormatting.swift`; do not duplicate `NSError`, `DecodingError`, or `OSStatus` message mapping in commands or tests.
 10. New shared production code belongs under `Sources/bioenvLib/`, and matching tests belong under `Tests/bioenvTests/` with a file name that matches the production concern.
+11. Error types tightly coupled to a single module (e.g. `EnvFileParseError` in `Store.swift`) may be co-located in that module's file rather than in a separate file. Only extract to a dedicated file when the type is used across multiple modules.
+12. `Store.parseEnvFile` is the only library method that writes a warning directly to stderr (for skipped invalid env key names). All other stderr output stays in `main.swift`. Do not add more stderr writes to library code; throw an error or return a result instead.
 
 ## Dependency & Supply-Chain Security
 
