@@ -296,6 +296,21 @@ struct StoreInitTests {
         #expect(nonCanonicalStore.projectPath == currentDirectory)
         #expect(nonCanonicalStore.projectHash == canonicalStore.projectHash)
     }
+
+    @Test func tildeInProjectPathIsExpandedToHomeDirectory() {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+        let store = Store(projectPath: "~/myproject")
+        #expect(store.projectPath == "\(homeDir)/myproject")
+        #expect(!store.projectPath.hasPrefix("~"))
+    }
+
+    @Test func tildePathAndExpandedPathProduceSameProjectHash() {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+        let tildeStore = Store(projectPath: "~/myproject", storeDir: "/tmp/bioenv-tilde-tests")
+        let expandedStore = Store(projectPath: "\(homeDir)/myproject", storeDir: "/tmp/bioenv-tilde-tests")
+        #expect(tildeStore.projectHash == expandedStore.projectHash)
+        #expect(tildeStore.storePath == expandedStore.storePath)
+    }
 }
 
 @Suite("Store.parseEnvFile")
@@ -1073,7 +1088,9 @@ struct StoreDefaultInitTests {
         #expect(store.storePath.hasSuffix(".enc"))
     }
 
-    @Test func projectPathIsStoredVerbatim() {
+    @Test func absoluteCanonicalPathIsUnchangedAfterNormalization() {
+        // An already-absolute, already-canonical path has no `.`, `..`, or `~`
+        // segments, so normalizeProjectPath leaves it unchanged.
         let path = "/Users/testuser/myproject"
         let store = Store(projectPath: path)
         #expect(store.projectPath == path)

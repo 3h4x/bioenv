@@ -44,6 +44,42 @@ struct ErrorFormattingTests {
         #expect(ErrorFormatting.userMessage(for: error) == "File not found: /tmp/.env")
     }
 
+    @Test func readPermissionDeniedIncludesPath() {
+        let error = NSError(
+            domain: NSCocoaErrorDomain,
+            code: CocoaError.fileReadNoPermission.rawValue,
+            userInfo: [NSFilePathErrorKey: "/etc/secrets.env"]
+        )
+        #expect(ErrorFormatting.userMessage(for: error) == "Permission denied while reading /etc/secrets.env.")
+    }
+
+    @Test func readPermissionDeniedWithoutPathFallsBack() {
+        let error = NSError(
+            domain: NSCocoaErrorDomain,
+            code: CocoaError.fileReadNoPermission.rawValue,
+            userInfo: [:]
+        )
+        #expect(ErrorFormatting.userMessage(for: error) == "Permission denied while reading the file.")
+    }
+
+    @Test func writePermissionDeniedIncludesPath() {
+        let error = NSError(
+            domain: NSCocoaErrorDomain,
+            code: CocoaError.fileWriteNoPermission.rawValue,
+            userInfo: [NSFilePathErrorKey: "/root/.bioenv/abc123.enc"]
+        )
+        #expect(ErrorFormatting.userMessage(for: error) == "Permission denied while writing /root/.bioenv/abc123.enc.")
+    }
+
+    @Test func writePermissionDeniedWithoutPathFallsBack() {
+        let error = NSError(
+            domain: NSCocoaErrorDomain,
+            code: CocoaError.fileWriteNoPermission.rawValue,
+            userInfo: [:]
+        )
+        #expect(ErrorFormatting.userMessage(for: error) == "Permission denied while writing the file.")
+    }
+
     @Test func envFileParseErrorsStaySpecific() {
         let error = EnvFileParseError(
             path: "/tmp/.env",
