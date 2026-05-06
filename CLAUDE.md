@@ -97,6 +97,8 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 14. There is no formatter or linter config in this repo today. Preserve the existing style manually and do not add `swift-format`, SwiftLint, or similar tooling without explicit approval.
 15. Prefer `struct`, `enum`, and static helpers for library code; only introduce reference types when a framework callback or shared mutable state truly requires one.
 16. `Store.parseEnvFile` supports multiline quoted values (single or double), normalizes `\r\n`/`\r` to `\n`, strips UTF-8 BOM, and throws `EnvFileParseError` for unterminated quoted values. Invalid key names produce a stderr warning and are silently skipped (not a thrown error). Do not weaken or change this contract without updating `StoreTests.swift` and the `ErrorFormattingTests.swift` entry for `EnvFileParseError`.
+17. Follow the naming style already used across the repo: types/files in UpperCamelCase, functions/properties/local bindings in lowerCamelCase, enum cases in lowerCamelCase, and command/config literals matching the shipped CLI strings exactly (`init`, `sync`, `appVersion`, etc.).
+18. Prefer synchronous code paths by default. Only introduce `async`/`await`, actors, or detached tasks when an Apple framework API truly requires them, and keep Keychain/LocalAuthentication flows simple enough to stay warning-free under Swift 6 strict concurrency.
 
 ## Testing
 
@@ -111,6 +113,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 9. Prefer regression tests for parsing, quoting, crypto, and error-reporting edge cases when fixing bugs; these have been the highest-churn areas in recent commits.
 10. If you change user-visible failure wording or add a new error-mapping path, extend `Tests/bioenvTests/ErrorFormattingTests.swift` in the same change.
 11. Skip unit tests for raw CLI usage/help text in `main.swift` unless that logic is first moved into `bioenvLib`.
+12. Keychain integration tests use the real login Keychain. Keep them isolated with unique synthetic project hashes and `defer` cleanup like `KeychainTests.swift`; never point a test at a real project path or persistent key name.
 
 ## Architecture
 
@@ -126,6 +129,8 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 10. New shared production code belongs under `Sources/bioenvLib/`, and matching tests belong under `Tests/bioenvTests/` with a file name that matches the production concern.
 11. Error types tightly coupled to a single module (e.g. `EnvFileParseError` in `Store.swift`) may be co-located in that module's file rather than in a separate file. Only extract to a dedicated file when the type is used across multiple modules.
 12. `Store.parseEnvFile` is the only library method that writes a warning directly to stderr (for skipped invalid env key names). All other stderr output stays in `main.swift`. Do not add more stderr writes to library code; throw an error or return a result instead.
+13. Preserve deterministic CLI output for secrets: commands like `load` and `list` must sort keys before printing, and tests should not rely on `Dictionary` iteration order.
+14. Keep `status` low-friction for uninitialized projects: it may probe for store/key presence without authentication, but only prompt for Touch ID when actually decrypting secrets to count them.
 
 ## Dependency & Supply-Chain Security
 
@@ -135,6 +140,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 4. Because there is no lockfile in this repo, treat any manifest change as supply-chain sensitive: do not add packages, build plugins, or generator tooling without explicit approval and a follow-up audit plan.
 5. Do not add non-SwiftPM ecosystem manifests or installers (`package.json`, `Brewfile`, `Mintfile`, etc.) without explicit approval; this repo currently builds with SwiftPM and system tools only.
 6. If a dependency exception is approved, inspect SwiftPM package plugins, macros, and any build-time code generation before adoption; treat them like executable code with the same review bar as a new binary.
+7. If an external Swift package is ever approved, commit the generated `Package.resolved` in the same change and review the resolved identities/revisions before commit; do not leave dependency resolution implicit.
 
 ## Scope & Safety Rules
 
@@ -145,3 +151,6 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 5. The `destroy` command is irreversible (deletes Keychain key + encrypted store). Always describe the consequence and require explicit user confirmation before suggesting or running it.
 6. Never commit `.env` files, `.env.local`, or any file containing real secrets.
 7. Do not let documentation drift after CLI changes: if you add, remove, or rename a command or flag, update `README.md` and `CLAUDE.md` in the same change.
+8. Do not run install-style commands (`make install`, manual `cp` into `~/bin`, or ad-hoc `codesign`) unless the user explicitly asked to change their local machine state.
+9. Do not push to `main` or trigger a release-producing push without explicit user instruction; every push to `main` publishes automatically.
+10. Use fake secret values in tests, examples, and docs edits. Never create, import, or echo a real credential while validating this repo.
