@@ -99,6 +99,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 16. `Store.parseEnvFile` supports multiline quoted values (single or double), normalizes `\r\n`/`\r` to `\n`, strips UTF-8 BOM, and throws `EnvFileParseError` for unterminated quoted values. Invalid key names produce a stderr warning and are silently skipped (not a thrown error). Do not weaken or change this contract without updating `StoreTests.swift` and the `ErrorFormattingTests.swift` entry for `EnvFileParseError`.
 17. Follow the naming style already used across the repo: types/files in UpperCamelCase, functions/properties/local bindings in lowerCamelCase, enum cases in lowerCamelCase, and command/config literals matching the shipped CLI strings exactly (`init`, `sync`, `appVersion`, etc.).
 18. Prefer synchronous code paths by default. Only introduce `async`/`await`, actors, or detached tasks when an Apple framework API truly requires them, and keep Keychain/LocalAuthentication flows simple enough to stay warning-free under Swift 6 strict concurrency.
+19. When CLI usage or aliases change, verify `README.md` against the actual `main.swift` help/usage text, including alternate invocation forms such as stdin-based `set`, `help` aliases, and `--version` aliases; do not assume the command table alone is sufficient documentation coverage.
 
 ## Testing
 
@@ -114,6 +115,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 10. If you change user-visible failure wording or add a new error-mapping path, extend `Tests/bioenvTests/ErrorFormattingTests.swift` in the same change.
 11. Skip unit tests for raw CLI usage/help text in `main.swift` unless that logic is first moved into `bioenvLib`.
 12. Keychain integration tests use the real login Keychain. Keep them isolated with unique synthetic project hashes and `defer` cleanup like `KeychainTests.swift`; never point a test at a real project path or persistent key name.
+13. If you change `.env` parsing, invalid-key handling, or multiline quoting behavior, add regression tests that cover both the returned key/value data and any intentional stderr warning/skip behavior.
 
 ## Architecture
 
