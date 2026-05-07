@@ -15,6 +15,10 @@ public enum ErrorFormatting {
             return formatCryptoError(cryptoError)
         }
 
+        if let execError = error as? ExecError {
+            return execError.description
+        }
+
         if error is DecodingError {
             return "Encrypted store is corrupted or unreadable."
         }
