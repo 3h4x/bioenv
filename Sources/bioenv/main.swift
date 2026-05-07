@@ -170,19 +170,14 @@ do {
         print("Initialized: \(hasStore ? "yes" : "no")")
         let keychainService = Keychain.serviceName(for: store.projectHash)
         print("Keychain service: \(keychainService)")
-        // Treat "not found" as an expected uninitialized state; propagate any other error.
-        let maybeKey: Data?
-        do {
-            maybeKey = try Keychain.getKey(projectHash: store.projectHash)
-        } catch let e as KeychainError where e.status == errSecItemNotFound {
-            maybeKey = nil
-        }
-        print("Keychain key: \(maybeKey != nil ? "present" : "missing")")
+        let hasKey = try Keychain.hasKey(projectHash: store.projectHash)
+        print("Keychain key: \(hasKey ? "present" : "missing")")
         let envrcPath = "\(store.projectPath)/.envrc"
         let hasEnvrc = FileManager.default.fileExists(atPath: envrcPath)
         print(".envrc: \(hasEnvrc ? "present" : "missing")")
-        if hasStore, let encKey = maybeKey {
+        if hasStore, hasKey {
             try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to access secrets in:\n\(dirPath)\n\nAuthenticate to continue")
+            let encKey = try Keychain.getKey(projectHash: store.projectHash)
             let secrets = try store.readSecrets(key: encKey)
             print("Secrets: \(secrets.count)")
         }

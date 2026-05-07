@@ -72,6 +72,18 @@ struct KeychainCRUDTests {
         #expect(first == second)
     }
 
+    @Test func hasKeyReturnsFalseWhenMissing() throws {
+        let hash = uniqueHash()
+        #expect(try Keychain.hasKey(projectHash: hash) == false)
+    }
+
+    @Test func hasKeyReturnsTrueAfterCreate() throws {
+        let hash = uniqueHash()
+        defer { try? Keychain.deleteKey(projectHash: hash) }
+        _ = try Keychain.createKey(projectHash: hash)
+        #expect(try Keychain.hasKey(projectHash: hash))
+    }
+
     @Test func createdKeysAreRandom() throws {
         let hash1 = uniqueHash()
         let hash2 = uniqueHash()

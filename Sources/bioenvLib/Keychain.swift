@@ -69,6 +69,27 @@ public enum Keychain {
         }
     }
 
+    public static func hasKey(projectHash: String) throws -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: serviceName(for: projectHash),
+            kSecAttrAccount as String: "encryption-key",
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
+        ]
+
+        let status = SecItemCopyMatching(query as CFDictionary, nil)
+        if status == errSecItemNotFound {
+            return false
+        }
+        guard status == errSecSuccess else {
+            throw KeychainError("Failed to check for encryption key", status: status)
+        }
+
+        return true
+    }
+
     public static func getKey(projectHash: String) throws -> Data {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
