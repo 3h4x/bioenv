@@ -43,6 +43,7 @@ bioenv set STRIPE_SECRET "whsec_..."
 
 # 4. Use them
 eval "$(bioenv load)"    # exports all secrets into current shell
+bioenv exec -- env       # injects secrets into one subprocess only
 bioenv get API_KEY       # print a single value
 ```
 
@@ -106,8 +107,10 @@ Now when you `cd` into the project, direnv triggers `bioenv load`, Touch ID prom
 |---------|----------|-------------|
 | `bioenv init` | No | Set up bioenv for the current directory |
 | `bioenv set KEY VALUE` | Yes | Add or update a secret |
+| `bioenv set KEY` | Yes | Add or update a secret from stdin |
 | `bioenv get KEY` | Yes | Print a single secret value |
 | `bioenv load` | Yes | Print `export KEY=VALUE` for all secrets |
+| `bioenv exec -- COMMAND [ARGS...]` | Yes | Run one command with project secrets injected into its environment |
 | `bioenv import FILE` | Yes | Bulk import from a `.env` file |
 | `bioenv list` | Yes | List secret names (no values) |
 | `bioenv remove KEY` | Yes | Delete a secret |
@@ -116,6 +119,8 @@ Now when you `cd` into the project, direnv triggers `bioenv load`, Touch ID prom
 | `bioenv config` | No | Show current configuration |
 | `bioenv config sync on\|off` | No | Toggle iCloud Keychain sync (default: off) |
 | `bioenv version` | No | Show installed version |
+| `bioenv --version` | No | Alias for `version` |
+| `bioenv help`, `bioenv --help`, `bioenv -h` | No | Show usage text |
 
 ## How It Works
 
@@ -131,6 +136,7 @@ Each project directory gets its own encryption key and encrypted store:
 3. Secrets are stored as AES-256-GCM encrypted JSON
 4. Every command except `init` requires Touch ID (or system password) before the encryption key is used
 5. `bioenv load` outputs shell `export` statements — designed for `eval "$(bioenv load)"`
+6. `bioenv exec -- ...` spawns a child process with a temporary environment containing the project secrets, leaving the parent shell untouched
 
 ## Configuration
 

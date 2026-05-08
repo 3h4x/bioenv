@@ -8,8 +8,10 @@ func printUsage() {
     Usage:
       bioenv init                  Initialize bioenv for current directory
       bioenv set KEY VALUE         Set a secret
+      bioenv set KEY               Set a secret from stdin
       bioenv get KEY               Get a secret value
       bioenv load                  Print all secrets as export statements
+      bioenv exec -- COMMAND ...   Run a command with project secrets in its environment
       bioenv import FILE           Import secrets from .env file
       bioenv list                  List secret key names
       bioenv remove KEY            Remove a secret
@@ -18,6 +20,9 @@ func printUsage() {
       bioenv config                Show current configuration
       bioenv config sync on|off    Enable/disable iCloud Keychain sync (default: off)
       bioenv version               Show version
+      bioenv --version             Show version
+      bioenv help                  Show this usage text
+      bioenv --help | -h           Show this usage text
     """
     fputs(usage + "\n", stderr)
 }
@@ -116,6 +121,15 @@ do {
         for (key, value) in secrets.sorted(by: { $0.key < $1.key }) {
             print("export \(key)=\(store.shellEscape(value))")
         }
+
+    case "exec":
+        let commandToRun = try Exec.command(from: Array(args.dropFirst()))
+        try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to run a command with vars from:\n\(dirPath)\n\nAuthenticate to continue")
+        let encKey = try Keychain.getKey(projectHash: store.projectHash)
+        var secrets = try store.readSecrets(key: encKey)
+        defer { secrets.removeAll(keepingCapacity: false) }
+        let exitCode = try Exec.run(command: commandToRun, environment: secrets)
+        exit(exitCode)
 
     case "import":
         guard args.count >= 2 else {

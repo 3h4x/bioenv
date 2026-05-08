@@ -93,6 +93,20 @@ struct ErrorFormattingTests {
         )
     }
 
+    @Test func execUsageErrorsStayReadable() {
+        #expect(
+            ErrorFormatting.userMessage(for: ExecError.invalidUsage) ==
+            "Usage: bioenv exec -- COMMAND [ARGS...]"
+        )
+    }
+
+    @Test func execNulValueErrorsStayReadable() {
+        #expect(
+            ErrorFormatting.userMessage(for: ExecError.invalidEnvironmentEntry(key: "PRIVATE_KEY")) ==
+            "Cannot exec with value for 'PRIVATE_KEY' because it contains a NUL byte."
+        )
+    }
+
     @Test func unrelatedErrorsFallBackToLocalizedDescription() {
         struct SampleError: LocalizedError {
             var errorDescription: String? { "sample failure" }
