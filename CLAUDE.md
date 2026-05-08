@@ -38,14 +38,18 @@ Sources/bioenv/
 Sources/bioenvLib/
   Keychain.swift     # Keychain CRUD + Touch ID auth via LAContext (Security + LocalAuthentication frameworks)
   Crypto.swift       # AES-256-GCM encrypt/decrypt (CryptoKit)
+  Exec.swift         # Subprocess command parsing, env injection, and secure buffer scrubbing
   Store.swift        # Encrypted JSON file operations, .env parsing, shell escaping
   Config.swift       # Configuration management (~/.bioenv/config.json)
+  ErrorFormatting.swift  # User-facing error normalization
   Version.swift      # appVersion constant ("dev" locally, injected by CI at release time)
 Tests/bioenvTests/
   KeychainTests.swift
   CryptoTests.swift
+  ExecTests.swift
   StoreTests.swift
   ConfigTests.swift
+  ErrorFormattingTests.swift
 ```
 
 ## Commands
@@ -101,6 +105,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 17. Follow the naming style already used across the repo: types/files in UpperCamelCase, functions/properties/local bindings in lowerCamelCase, enum cases in lowerCamelCase, and command/config literals matching the shipped CLI strings exactly (`init`, `sync`, `appVersion`, etc.).
 18. Prefer synchronous code paths by default. Only introduce `async`/`await`, actors, or detached tasks when an Apple framework API truly requires them, and keep Keychain/LocalAuthentication flows simple enough to stay warning-free under Swift 6 strict concurrency.
 19. When CLI usage or aliases change, verify `README.md` against the actual `main.swift` help/usage text, including alternate invocation forms such as stdin-based `set`, `help` aliases, and `--version` aliases; do not assume the command table alone is sufficient documentation coverage.
+20. Keep imports direct and file-local: import only the system frameworks and modules a file uses (`Foundation`, `CryptoKit`, `Security`, `LocalAuthentication`, `Darwin`, `bioenvLib`, `Testing`); do not introduce re-export/barrel modules or umbrella wrappers.
 
 ## Testing
 
@@ -117,6 +122,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 11. Skip unit tests for raw CLI usage/help text in `main.swift` unless that logic is first moved into `bioenvLib`.
 12. Keychain integration tests use the real login Keychain. Keep them isolated with unique synthetic project hashes and `defer` cleanup like `KeychainTests.swift`; never point a test at a real project path or persistent key name.
 13. If you change `.env` parsing, invalid-key handling, or multiline quoting behavior, add regression tests that cover both the returned key/value data and any intentional stderr warning/skip behavior.
+14. New public functions in `Exec` or changes to subprocess/environment behavior require matching coverage in `Tests/bioenvTests/ExecTests.swift`, including child exit status, parent-environment isolation, and secret-buffer scrubbing where relevant.
 
 ## Architecture
 
@@ -134,6 +140,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 12. `Store.parseEnvFile` is the only library method that writes a warning directly to stderr (for skipped invalid env key names). All other stderr output stays in `main.swift`. Do not add more stderr writes to library code; throw an error or return a result instead.
 13. Preserve deterministic CLI output for secrets: commands like `load` and `list` must sort keys before printing, and tests should not rely on `Dictionary` iteration order.
 14. Keep `status` low-friction for uninitialized projects: it may probe for store/key presence without authentication, but only prompt for Touch ID when actually decrypting secrets to count them.
+15. All subprocess command parsing, environment merging, and process spawning go through `Sources/bioenvLib/Exec.swift`; do not call `Process`, `posix_spawn*`, or `waitpid` from `main.swift` or unrelated modules.
 
 ## Dependency & Supply-Chain Security
 
@@ -144,6 +151,9 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 5. Do not add non-SwiftPM ecosystem manifests or installers (`package.json`, `Brewfile`, `Mintfile`, etc.) without explicit approval; this repo currently builds with SwiftPM and system tools only.
 6. If a dependency exception is approved, inspect SwiftPM package plugins, macros, and any build-time code generation before adoption; treat them like executable code with the same review bar as a new binary.
 7. If an external Swift package is ever approved, commit the generated `Package.resolved` in the same change and review the resolved identities/revisions before commit; do not leave dependency resolution implicit.
+8. Before approving any external Swift package, inspect its `Package.swift` and repository for macros, plugins, build-tool execution, or generated-code hooks; treat SwiftPM build-time code like any other executable supply-chain risk.
+9. Before adding a new package identity, verify it points to the intended upstream repository/owner and sane release history to reduce typosquatting or abandoned-fork risk; capture that check in the commit message or PR notes.
+10. After any approved dependency change, run `swift package show-dependencies` and review the diff for `Package.swift` and `Package.resolved` together before commit.
 
 ## Scope & Safety Rules
 
