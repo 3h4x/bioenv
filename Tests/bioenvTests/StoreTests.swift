@@ -324,6 +324,19 @@ struct ParseEnvFileTests {
         return try Store.parseEnvFile(url.path)
     }
 
+    private func parseCapturingWarnings(_ content: String) throws -> ([String: String], String) {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".env")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try content.write(to: url, atomically: true, encoding: .utf8)
+
+        var warnings = ""
+        let result = try Store.parseEnvFile(url.path) { warning in
+            warnings += warning
+        }
+        return (result, warnings)
+    }
+
     // MARK: - Basic parsing
 
     @Test func basicKeyValue() throws {
@@ -449,10 +462,29 @@ struct ParseEnvFileTests {
         #expect(result["VALID"] == "ok")
     }
 
+    @Test func invalidKeyWarningEmitted() throws {
+        let (result, standardError) = try parseCapturingWarnings("1INVALID=value\nVALID=ok\n")
+        let expectedWarning = "warning: skipping invalid key '1INVALID' (must match [A-Za-z_][A-Za-z0-9_]*)\n"
+        #expect(result["1INVALID"] == nil)
+        #expect(result["VALID"] == "ok")
+        #expect(standardError.contains(expectedWarning))
+        #expect(standardError.components(separatedBy: expectedWarning).count == 2)
+    }
+
     @Test func keyWithDashSkipped() throws {
         let result = try parse("HAS-DASH=value\nFOO=bar\n")
         #expect(result["HAS-DASH"] == nil)
         #expect(result["FOO"] == "bar")
+    }
+
+    @Test func invalidQuotedMultilineKeyEmitsSingleWarning() throws {
+        let (result, standardError) = try parseCapturingWarnings("HAS-DASH='line1\nINNER=shadow\nline3'\nVALID=ok\n")
+        let expectedWarning = "warning: skipping invalid key 'HAS-DASH' (must match [A-Za-z_][A-Za-z0-9_]*)\n"
+        #expect(result["HAS-DASH"] == nil)
+        #expect(result["INNER"] == nil)
+        #expect(result["VALID"] == "ok")
+        #expect(standardError.contains(expectedWarning))
+        #expect(standardError.components(separatedBy: expectedWarning).count == 2)
     }
 
     @Test func lineWithoutEqualSignSkipped() throws {
@@ -497,6 +529,15 @@ struct ParseEnvFileTests {
         let result = try parse("café=value\nVALID=ok\n")
         #expect(result["café"] == nil)
         #expect(result["VALID"] == "ok")
+    }
+
+    @Test func unicodeKeyWarningEmitted() throws {
+        let (result, standardError) = try parseCapturingWarnings("café=value\nVALID=ok\n")
+        let expectedWarning = "warning: skipping invalid key 'café' (must match [A-Za-z_][A-Za-z0-9_]*)\n"
+        #expect(result["café"] == nil)
+        #expect(result["VALID"] == "ok")
+        #expect(standardError.contains(expectedWarning))
+        #expect(standardError.components(separatedBy: expectedWarning).count == 2)
     }
 
     @Test func invalidKeyWithMalformedQuotedValueDoesNotBlockFollowingValidKey() throws {

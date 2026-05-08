@@ -139,6 +139,15 @@ public struct Store {
     }
 
     public static func parseEnvFile(_ path: String) throws -> [String: String] {
+        try parseEnvFile(path) { warning in
+            fputs(warning, stderr)
+        }
+    }
+
+    public static func parseEnvFile(
+        _ path: String,
+        warningHandler: (String) -> Void
+    ) throws -> [String: String] {
         var content = try String(contentsOfFile: path, encoding: .utf8)
         // Windows editors commonly prepend a UTF-8 BOM (\u{FEFF}); without stripping it
         // the first key becomes "\u{FEFF}KEY" which fails POSIX validation and is silently skipped.
@@ -180,7 +189,7 @@ public struct Store {
                 )
                 result[key] = value
             } else if !key.isEmpty {
-                fputs("warning: skipping invalid key '\(key)' (must match [A-Za-z_][A-Za-z0-9_]*)\n", stderr)
+                warningHandler("warning: skipping invalid key '\(key)' (must match [A-Za-z_][A-Za-z0-9_]*)\n")
                 skipInvalidValueRecord(
                     rawValue,
                     lineIndex: &lineIndex,
