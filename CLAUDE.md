@@ -123,6 +123,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 12. Keychain integration tests use the real login Keychain. Keep them isolated with unique synthetic project hashes and `defer` cleanup like `KeychainTests.swift`; never point a test at a real project path or persistent key name.
 13. If you change `.env` parsing, invalid-key handling, or multiline quoting behavior, add regression tests that cover both the returned key/value data and any intentional stderr warning/skip behavior.
 14. New public functions in `Exec` or changes to subprocess/environment behavior require matching coverage in `Tests/bioenvTests/ExecTests.swift`, including child exit status, parent-environment isolation, and secret-buffer scrubbing where relevant.
+15. If you change `.githooks/pre-push`, `Package.swift`, or the contributor setup flow, run both `swift test` and `swift build` before commit so the checked-in hook contract remains accurate.
 
 ## Architecture
 
@@ -141,6 +142,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 13. Preserve deterministic CLI output for secrets: commands like `load` and `list` must sort keys before printing, and tests should not rely on `Dictionary` iteration order.
 14. Keep `status` low-friction for uninitialized projects: it may probe for store/key presence without authentication, but only prompt for Touch ID when actually decrypting secrets to count them.
 15. All subprocess command parsing, environment merging, and process spawning go through `Sources/bioenvLib/Exec.swift`; do not call `Process`, `posix_spawn*`, or `waitpid` from `main.swift` or unrelated modules.
+16. Treat `docs/superpowers/specs/2026-05-08-exec-command-security.md` as the design note for `bioenv exec`; when you change subprocess secret-handling or lifecycle semantics, update that spec in the same change.
 
 ## Dependency & Supply-Chain Security
 
@@ -154,6 +156,8 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 8. Before approving any external Swift package, inspect its `Package.swift` and repository for macros, plugins, build-tool execution, or generated-code hooks; treat SwiftPM build-time code like any other executable supply-chain risk.
 9. Before adding a new package identity, verify it points to the intended upstream repository/owner and sane release history to reduce typosquatting or abandoned-fork risk; capture that check in the commit message or PR notes.
 10. After any approved dependency change, run `swift package show-dependencies` and review the diff for `Package.swift` and `Package.resolved` together before commit.
+11. If an exception is approved for any non-Swift ecosystem dependency or installer script, inspect its `postinstall`, `prepare`, build hook, and generated-binary behavior before running it; treat install-time scripts as arbitrary code execution.
+12. After any approved dependency change outside SwiftPM, run the ecosystem-appropriate audit command (`npm audit`, `pnpm audit`, `cargo audit`, `pip-audit`, etc.) and record any blockers before commit.
 
 ## Scope & Safety Rules
 
@@ -167,3 +171,4 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 8. Do not run install-style commands (`make install`, manual `cp` into `~/bin`, or ad-hoc `codesign`) unless the user explicitly asked to change their local machine state.
 9. Do not push to `main` or trigger a release-producing push without explicit user instruction; every push to `main` publishes automatically.
 10. Use fake secret values in tests, examples, and docs edits. Never create, import, or echo a real credential while validating this repo.
+11. Keep the checked-in contributor hook flow intact: if your change alters build verification expectations, update `.githooks/pre-push`, `README.md`, and the documented `make setup` workflow together instead of relying on undocumented local setup.
