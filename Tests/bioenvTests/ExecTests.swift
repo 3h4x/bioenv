@@ -17,6 +17,20 @@ struct ExecTests {
         }
     }
 
+    @Test func commandRejectsNulContainingArgumentBeforeSpawn() {
+        do {
+            _ = try Exec.command(from: ["--", "/bin/echo", "hello\0world"])
+            Issue.record("Expected Exec.command to reject NUL-containing command argument")
+        } catch let error as ExecError {
+            #expect(
+                error.description ==
+                "Cannot exec because command argument 2 contains a NUL byte."
+            )
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test func injectsSecretsOnlyIntoChildProcess() throws {
         unsetenv("BIOENV_EXEC_TEST_SECRET")
 
@@ -83,6 +97,23 @@ struct ExecTests {
             #expect(
                 error.description ==
                 "Cannot exec with value for 'BIOENV_EXEC_TEST_SECRET' because it contains a NUL byte."
+            )
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test func execRejectsNulContainingExecutableBeforeSpawn() {
+        do {
+            _ = try Exec.run(
+                command: ["/usr/bin\0/env"],
+                environment: [:]
+            )
+            Issue.record("Expected Exec.run to reject NUL-containing executable")
+        } catch let error as ExecError {
+            #expect(
+                error.description ==
+                "Cannot exec because command argument 1 contains a NUL byte."
             )
         } catch {
             Issue.record("Unexpected error: \(error)")

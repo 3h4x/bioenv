@@ -4,6 +4,7 @@ import Darwin
 public enum ExecError: Error, CustomStringConvertible {
     case invalidUsage
     case noCommand
+    case invalidCommandArgument(index: Int)
     case invalidEnvironmentEntry(key: String)
     case waitFailed(Int32)
     case childExecutionFailed(command: String, errno: Int32)
@@ -14,6 +15,8 @@ public enum ExecError: Error, CustomStringConvertible {
             return "Usage: bioenv exec -- COMMAND [ARGS...]"
         case .noCommand:
             return "Usage: bioenv exec -- COMMAND [ARGS...]"
+        case .invalidCommandArgument(let index):
+            return "Cannot exec because command argument \(index + 1) contains a NUL byte."
         case .invalidEnvironmentEntry(let key):
             return "Cannot exec with value for '\(key)' because it contains a NUL byte."
         case .waitFailed(let errno):
@@ -34,6 +37,7 @@ public enum Exec {
         guard !command.isEmpty else {
             throw ExecError.noCommand
         }
+        try validateCommandArguments(command)
 
         return command
     }
@@ -42,6 +46,7 @@ public enum Exec {
         guard !command.isEmpty else {
             throw ExecError.noCommand
         }
+        try validateCommandArguments(command)
 
         var pid = pid_t()
         let spawnStatus = try withCommandPointers(command) { argv in
@@ -112,6 +117,14 @@ public enum Exec {
             merged[key] = value
         }
         return merged.keys.sorted().map { (key: $0, value: merged[$0] ?? "") }
+    }
+
+    private static func validateCommandArguments(_ command: [String]) throws {
+        for (index, argument) in command.enumerated() {
+            if argument.contains("\0") {
+                throw ExecError.invalidCommandArgument(index: index)
+            }
+        }
     }
 
     private static func withCommandPointers<R>(

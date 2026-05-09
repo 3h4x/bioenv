@@ -5,6 +5,9 @@ current project's decrypted secrets merged into that child environment.
 
 Security and lifecycle constraints:
 
+- `bioenv` rejects embedded NUL bytes in both command arguments and injected
+  environment values before converting them to C strings or calling
+  `posix_spawnp`, so the child never sees truncated argv/env entries.
 - The parent shell environment is not modified.
 - `bioenv` writes `KEY=VALUE` environment entries directly into temporary
   C-string buffers for the duration of `posix_spawnp`, instead of staging

@@ -107,6 +107,13 @@ struct ErrorFormattingTests {
         )
     }
 
+    @Test func execNulArgumentErrorsStayReadable() {
+        #expect(
+            ErrorFormatting.userMessage(for: ExecError.invalidCommandArgument(index: 1)) ==
+            "Cannot exec because command argument 2 contains a NUL byte."
+        )
+    }
+
     @Test func unrelatedErrorsFallBackToLocalizedDescription() {
         struct SampleError: LocalizedError {
             var errorDescription: String? { "sample failure" }
