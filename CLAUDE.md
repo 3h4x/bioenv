@@ -57,7 +57,7 @@ Tests/bioenvTests/
 ```
 bioenv init              # Create encryption key in Keychain for current directory (no Touch ID)
 bioenv set KEY VALUE     # Add/update a secret (Touch ID)
-bioenv set KEY           # Add/update a secret — reads VALUE from stdin (Touch ID)
+bioenv set KEY           # Add/update a secret — reads VALUE from stdin until EOF, strips one trailing newline (Touch ID)
 bioenv get KEY           # Get single secret (Touch ID)
 bioenv load              # Print export statements for all secrets (Touch ID)
 bioenv exec -- COMMAND [ARGS...]  # Run one command with project secrets in its environment (Touch ID)
