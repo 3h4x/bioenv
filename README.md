@@ -82,7 +82,13 @@ rm .env.local
 Your secrets are now encrypted. The `.env.local` file is gone, but everything works exactly the same — direnv still loads your env vars automatically, the only difference is a Touch ID prompt.
 
 This also works with `.env`, `.env.development`, or any file in `KEY=VALUE` format.
-Quoted multiline values are supported during import; unterminated quoted values fail with a line-specific error instead of importing partial data.
+
+**`.env` parsing rules:**
+- Keys must match `[A-Za-z_][A-Za-z0-9_]*` (POSIX env var names). Invalid keys are warned and skipped.
+- Both single and double-quoted values are supported; physical multi-line quoted values preserve embedded newlines.
+- Backslash sequences inside quoted values are **stored verbatim** — `\"` stays as `\"`, `\n` stays as `\n` (two characters). bioenv does not interpret escape sequences on import; what you import is what you get.
+- Unquoted values strip trailing inline comments (`value # comment` → `value`).
+- Unterminated quoted values fail with a line-specific error instead of importing partial data.
 
 ## direnv Integration
 
@@ -107,7 +113,7 @@ Now when you `cd` into the project, direnv triggers `bioenv load`, Touch ID prom
 |---------|----------|-------------|
 | `bioenv init` | No | Set up bioenv for the current directory |
 | `bioenv set KEY VALUE` | Yes | Add or update a secret |
-| `bioenv set KEY` | Yes | Add or update a secret from stdin |
+| `bioenv set KEY` | Yes | Add or update a secret from stdin (reads until EOF; strips one trailing newline) |
 | `bioenv get KEY` | Yes | Print a single secret value |
 | `bioenv load` | Yes | Print `export KEY=VALUE` for all secrets |
 | `bioenv exec -- COMMAND [ARGS...]` | Yes | Run one command with project secrets injected into its environment |

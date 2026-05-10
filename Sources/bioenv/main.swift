@@ -80,11 +80,22 @@ do {
         let value: String
         if args.count >= 3 {
             value = args[2]
-        } else if let stdin = readLine(strippingNewline: true) {
-            value = stdin
         } else {
-            fputs("Usage: bioenv set KEY VALUE\n", stderr)
-            exit(1)
+            // Read all stdin so multi-line values (PEM keys, certificates) are
+            // stored intact, not silently truncated at the first newline.
+            let raw = FileHandle.standardInput.readDataToEndOfFile()
+            guard !raw.isEmpty, let stdinString = String(data: raw, encoding: .utf8) else {
+                fputs("Usage: bioenv set KEY VALUE\n", stderr)
+                exit(1)
+            }
+            // Strip one trailing newline that `echo` and most shell pipelines append.
+            if stdinString.hasSuffix("\r\n") {
+                value = String(stdinString.dropLast(2))
+            } else if stdinString.hasSuffix("\n") {
+                value = String(stdinString.dropLast())
+            } else {
+                value = stdinString
+            }
         }
 
         try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to set var in:\n\(dirPath)\n\nAuthenticate to continue")
