@@ -172,3 +172,5 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 9. Do not push to `main` or trigger a release-producing push without explicit user instruction; every push to `main` publishes automatically.
 10. Use fake secret values in tests, examples, and docs edits. Never create, import, or echo a real credential while validating this repo.
 11. Keep the checked-in contributor hook flow intact: if your change alters build verification expectations, update `.githooks/pre-push`, `README.md`, and the documented `make setup` workflow together instead of relying on undocumented local setup.
+12. Work on a non-`main` branch by default. Do not create commits directly on `main` unless the user explicitly asked for that release-risky path.
+13. Do not rewrite published history for this repo (`git push --force`, rebases that would require force-push, or branch deletion) without explicit user approval; `main` is release-producing and history edits are operationally sensitive.
