@@ -56,6 +56,15 @@ struct ExecTests {
         #expect(status == 23)
     }
 
+    @Test func childSignalTerminationReturns128PlusSignal() throws {
+        let status = try Exec.run(
+            command: ["/bin/sh", "-c", "kill -KILL $$"],
+            environment: [:]
+        )
+
+        #expect(status == 137)
+    }
+
     @Test func waitRetriesWhenInterrupted() throws {
         var attempts = 0
 

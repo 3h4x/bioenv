@@ -106,6 +106,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 18. Prefer synchronous code paths by default. Only introduce `async`/`await`, actors, or detached tasks when an Apple framework API truly requires them, and keep Keychain/LocalAuthentication flows simple enough to stay warning-free under Swift 6 strict concurrency.
 19. When CLI usage or aliases change, verify `README.md` against the actual `main.swift` help/usage text, including alternate invocation forms such as stdin-based `set`, `help` aliases, and `--version` aliases; do not assume the command table alone is sufficient documentation coverage.
 20. Keep imports direct and file-local: import only the system frameworks and modules a file uses (`Foundation`, `CryptoKit`, `Security`, `LocalAuthentication`, `Darwin`, `bioenvLib`, `Testing`); do not introduce re-export/barrel modules or umbrella wrappers.
+21. Preserve the `bioenv set KEY` stdin contract: read stdin to EOF, keep embedded newlines intact, and strip at most one trailing line ending (`\n` or `\r\n`) that shell pipelines append. Do not switch this path back to line-based reads or trim additional trailing whitespace without updating docs and tests.
 
 ## Testing
 
@@ -124,6 +125,7 @@ Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
 13. If you change `.env` parsing, invalid-key handling, or multiline quoting behavior, add regression tests that cover both the returned key/value data and any intentional stderr warning/skip behavior.
 14. New public functions in `Exec` or changes to subprocess/environment behavior require matching coverage in `Tests/bioenvTests/ExecTests.swift`, including child exit status, parent-environment isolation, and secret-buffer scrubbing where relevant.
 15. If you change `.githooks/pre-push`, `Package.swift`, or the contributor setup flow, run both `swift test` and `swift build` before commit so the checked-in hook contract remains accurate.
+16. If you change stdin-based secret ingestion for `bioenv set KEY`, add or update regression coverage for multiline values and trailing newline normalization (`\n` and `\r\n`) so EOF-handling bugs do not regress silently.
 
 ## Architecture
 
