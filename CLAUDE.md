@@ -80,9 +80,11 @@ bioenv help | --help | -h  # Show usage text
 eval "$(bioenv load)"
 ```
 
-## Design Spec
+## Docs Reference
 
-Full design: `docs/superpowers/specs/2026-03-26-bioenv-design.md`
+| File | Topic | Load when |
+| --- | --- | --- |
+| `docs/superpowers/specs/2026-05-08-exec-command-security.md` | Security and lifecycle constraints for `bioenv exec -- COMMAND [ARGS...]`, including NUL-byte rejection, environment injection scope, and buffer zeroing. | Read before changing `Sources/bioenvLib/Exec.swift`, subprocess spawning, secret environment handling, or tests that cover `exec` lifecycle/security behavior. |
 
 ## Coding Conventions
 
