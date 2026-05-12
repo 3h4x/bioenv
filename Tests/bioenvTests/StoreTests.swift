@@ -1103,6 +1103,52 @@ struct StoreRoundTripTests {
             try store.readSecrets(key: key)
         }
     }
+
+    @Test func readSecretsRejectsInvalidSecretKeyInDecryptedStore() throws {
+        let (store, base) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let key = makeKey()
+        try store.ensureStoreDirectory()
+        let invalidSecrets = Data(#"{"BAD-KEY":"value","GOOD_KEY":"ok"}"#.utf8)
+        let ciphertext = try Crypto.encrypt(data: invalidSecrets, key: key)
+        try ciphertext.write(to: URL(fileURLWithPath: store.storePath))
+
+        do {
+            _ = try store.readSecrets(key: key)
+            Issue.record("Expected invalid secret key to be rejected")
+        } catch let error as StoreError {
+            #expect(error == .invalidSecretKey("BAD-KEY"))
+        } catch {
+            Issue.record("Expected StoreError.invalidSecretKey, got \(error)")
+        }
+    }
+
+    @Test func writeSecretsRejectsInvalidSecretKey() throws {
+        let (store, base) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let key = makeKey()
+
+        do {
+            try store.writeSecrets(["BAD-KEY": "value", "GOOD_KEY": "ok"], key: key)
+            Issue.record("Expected invalid secret key to be rejected on write")
+        } catch let error as StoreError {
+            #expect(error == .invalidSecretKey("BAD-KEY"))
+        } catch {
+            Issue.record("Expected StoreError.invalidSecretKey, got \(error)")
+        }
+    }
+
+    @Test func writeSecretsPersistsValidSecretKeys() throws {
+        let (store, base) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let key = makeKey()
+        let secrets = ["GOOD_KEY": "ok", "_ALSO_VALID_2": "value"]
+
+        try store.writeSecrets(secrets, key: key)
+
+        let restored = try store.readSecrets(key: key)
+        #expect(restored == secrets)
+    }
 }
 
 @Suite("Store.defaultInit")

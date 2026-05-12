@@ -35,6 +35,14 @@ struct ErrorFormattingTests {
         #expect(ErrorFormatting.userMessage(for: error) == "Encrypted store is corrupted or unreadable.")
     }
 
+    @Test func invalidSecretKeyInEncryptedStoreStaysReadable() {
+        let error = StoreError.invalidSecretKey("BAD-KEY")
+        #expect(
+            ErrorFormatting.userMessage(for: error) ==
+            "Encrypted store contains invalid key 'BAD-KEY'. Secret names must match [A-Za-z_][A-Za-z0-9_]*."
+        )
+    }
+
     @Test func missingFileUsesReadablePathMessage() {
         let error = NSError(
             domain: NSCocoaErrorDomain,

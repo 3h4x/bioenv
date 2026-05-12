@@ -15,6 +15,10 @@ public enum ErrorFormatting {
             return formatCryptoError(cryptoError)
         }
 
+        if let storeError = error as? StoreError {
+            return formatStoreError(storeError)
+        }
+
         if let execError = error as? ExecError {
             return execError.description
         }
@@ -65,6 +69,13 @@ public enum ErrorFormatting {
             return "Failed to encrypt secrets."
         case .decryptionFailed:
             return "Failed to decrypt secrets. The encrypted store may be corrupted or the wrong Keychain key may be in use."
+        }
+    }
+
+    private static func formatStoreError(_ error: StoreError) -> String {
+        switch error {
+        case .invalidSecretKey(let key):
+            return "Encrypted store contains invalid key '\(key)'. Secret names must match [A-Za-z_][A-Za-z0-9_]*."
         }
     }
 }

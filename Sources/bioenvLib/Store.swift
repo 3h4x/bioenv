@@ -19,6 +19,17 @@ public struct EnvFileParseError: Error, CustomStringConvertible {
     }
 }
 
+public enum StoreError: Error, CustomStringConvertible, Equatable {
+    case invalidSecretKey(String)
+
+    public var description: String {
+        switch self {
+        case .invalidSecretKey(let key):
+            return "Encrypted store contains invalid key '\(key)'."
+        }
+    }
+}
+
 public struct Store {
     public let projectPath: String
     public let projectHash: String
@@ -67,11 +78,13 @@ public struct Store {
         var decryptedData = try Crypto.decrypt(data: encryptedData, key: key)
         defer { decryptedData.resetBytes(in: 0..<decryptedData.count) }
         let secrets = try JSONDecoder().decode([String: String].self, from: decryptedData)
+        try validateSecretKeys(secrets)
         return secrets
     }
 
     public func writeSecrets(_ secrets: [String: String], key: Data) throws {
         try ensureStoreDirectory()
+        try validateSecretKeys(secrets)
         // Zero the plaintext JSON buffer after encryption so secret bytes don't
         // linger in the heap longer than necessary.
         var jsonData = try JSONEncoder().encode(secrets)
@@ -97,6 +110,12 @@ public struct Store {
         guard !name.isEmpty, let first = name.unicodeScalars.first else { return false }
         guard envVarLeadSet.contains(first) else { return false }
         return name.unicodeScalars.dropFirst().allSatisfy { envVarBodySet.contains($0) }
+    }
+
+    private func validateSecretKeys(_ secrets: [String: String]) throws {
+        for key in secrets.keys where !Self.isValidEnvVarName(key) {
+            throw StoreError.invalidSecretKey(key)
+        }
     }
 
     public func shellEscape(_ value: String) -> String {
