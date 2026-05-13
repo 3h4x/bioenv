@@ -79,6 +79,12 @@ do {
         }
         let value: String
         if args.count >= 3 {
+            if args.count > 3 {
+                fputs("Too many arguments: VALUE must be a single argument.\n", stderr)
+                fputs("Use quotes for values with spaces: bioenv set KEY 'hello world'\n", stderr)
+                fputs("Or pipe via stdin:                 echo VALUE | bioenv set KEY\n", stderr)
+                exit(1)
+            }
             value = args[2]
         } else {
             // Read all stdin so multi-line values (PEM keys, certificates) are
@@ -88,14 +94,7 @@ do {
                 fputs("Usage: bioenv set KEY VALUE\n", stderr)
                 exit(1)
             }
-            // Strip one trailing newline that `echo` and most shell pipelines append.
-            if stdinString.hasSuffix("\r\n") {
-                value = String(stdinString.dropLast(2))
-            } else if stdinString.hasSuffix("\n") {
-                value = String(stdinString.dropLast())
-            } else {
-                value = stdinString
-            }
+            value = Store.stripOneTrailingNewline(stdinString)
         }
 
         try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to set var in:\n\(dirPath)\n\nAuthenticate to continue")
