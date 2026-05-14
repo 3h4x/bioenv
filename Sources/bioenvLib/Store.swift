@@ -112,6 +112,19 @@ public struct Store {
         return name.unicodeScalars.dropFirst().allSatisfy { envVarBodySet.contains($0) }
     }
 
+    /// Strips at most one trailing newline (`\r\n` or `\n`) from `s`.
+    /// This matches the contract for `bioenv set KEY` stdin ingestion: shell pipelines
+    /// and `echo` append exactly one newline, which must be removed; embedded newlines
+    /// (e.g. PEM keys) must be preserved.
+    public static func stripOneTrailingNewline(_ s: String) -> String {
+        // Swift treats \r\n as a single grapheme cluster, so dropLast() removes
+        // the CRLF pair as one unit — using dropLast(2) would also remove the
+        // preceding character.
+        if s.hasSuffix("\r\n") { return String(s.dropLast()) }
+        if s.hasSuffix("\n") { return String(s.dropLast()) }
+        return s
+    }
+
     private func validateSecretKeys(_ secrets: [String: String]) throws {
         for key in secrets.keys where !Self.isValidEnvVarName(key) {
             throw StoreError.invalidSecretKey(key)

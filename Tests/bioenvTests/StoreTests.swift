@@ -1151,6 +1151,58 @@ struct StoreRoundTripTests {
     }
 }
 
+@Suite("Store.stripOneTrailingNewline")
+struct StoreStripOneTrailingNewlineTests {
+    @Test func leavesPlainStringUnchanged() {
+        #expect(Store.stripOneTrailingNewline("hello") == "hello")
+    }
+
+    @Test func stripsLFNewline() {
+        #expect(Store.stripOneTrailingNewline("hello\n") == "hello")
+    }
+
+    @Test func stripsCRLFNewline() {
+        #expect(Store.stripOneTrailingNewline("hello\r\n") == "hello")
+    }
+
+    @Test func leavesEmbeddedNewlinesIntact() {
+        // Multi-line values like PEM keys must preserve interior newlines.
+        #expect(Store.stripOneTrailingNewline("line1\nline2\n") == "line1\nline2")
+    }
+
+    @Test func stripsOnlyOneTrailingLF() {
+        // Two trailing newlines: only one is stripped.
+        #expect(Store.stripOneTrailingNewline("hello\n\n") == "hello\n")
+    }
+
+    @Test func stripsOnlyOneTrailingCRLF() {
+        #expect(Store.stripOneTrailingNewline("hello\r\n\r\n") == "hello\r\n")
+    }
+
+    @Test func emptyStringUnchanged() {
+        #expect(Store.stripOneTrailingNewline("") == "")
+    }
+
+    @Test func onlyLFBecomesEmpty() {
+        #expect(Store.stripOneTrailingNewline("\n") == "")
+    }
+
+    @Test func onlyCRLFBecomesEmpty() {
+        #expect(Store.stripOneTrailingNewline("\r\n") == "")
+    }
+
+    @Test func standaloneCRIsNotStripped() {
+        // A bare \r is not a recognized line ending and must be preserved.
+        #expect(Store.stripOneTrailingNewline("hello\r") == "hello\r")
+    }
+
+    @Test func multilinePemLikeValuePreservesInteriorNewlines() {
+        let pem = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg==\n-----END PRIVATE KEY-----\n"
+        let expected = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg==\n-----END PRIVATE KEY-----"
+        #expect(Store.stripOneTrailingNewline(pem) == expected)
+    }
+}
+
 @Suite("Store.defaultInit")
 struct StoreDefaultInitTests {
     @Test func defaultProjectPathIsCurrentDirectory() {
