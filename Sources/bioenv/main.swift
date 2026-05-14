@@ -1,6 +1,19 @@
 import Foundation
 import bioenvLib
 
+func failUsage(_ lines: [String]) -> Never {
+    for line in lines {
+        fputs(line + "\n", stderr)
+    }
+    exit(1)
+}
+
+func requireExactArgumentCount(_ args: [String], count: Int, usageLines: [String]) {
+    guard args.count == count else {
+        failUsage(usageLines)
+    }
+}
+
 func printUsage() {
     let usage = """
     bioenv \(appVersion) - Biometric-protected environment variables
@@ -38,11 +51,13 @@ guard let command = args.first else {
 }
 
 if command == "version" || command == "--version" {
+    requireExactArgumentCount(args, count: 1, usageLines: ["Usage: bioenv \(command)"])
     print("bioenv \(appVersion)")
     exit(0)
 }
 
 if command == "help" || command == "--help" || command == "-h" {
+    requireExactArgumentCount(args, count: 1, usageLines: ["Usage: bioenv help | --help | -h"])
     printUsage()
     exit(0)
 }
@@ -53,6 +68,7 @@ do {
 
     switch command {
     case "init":
+        requireExactArgumentCount(args, count: 1, usageLines: ["Usage: bioenv init"])
         let encKey = try Keychain.getOrCreateKey(projectHash: store.projectHash, syncable: config.sync)
         try store.ensureStoreDirectory()
         if !FileManager.default.fileExists(atPath: store.storePath) {
@@ -106,10 +122,7 @@ do {
         print("Set \(key)")
 
     case "get":
-        guard args.count >= 2 else {
-            fputs("Usage: bioenv get KEY\n", stderr)
-            exit(1)
-        }
+        requireExactArgumentCount(args, count: 2, usageLines: ["Usage: bioenv get KEY"])
         let key = args[1]
         guard Store.isValidEnvVarName(key) else {
             fputs("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*\n", stderr)
@@ -125,6 +138,7 @@ do {
         print(value)
 
     case "load":
+        requireExactArgumentCount(args, count: 1, usageLines: ["Usage: bioenv load"])
         try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to load vars from:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getKey(projectHash: store.projectHash)
         let secrets = try store.readSecrets(key: encKey)
@@ -142,10 +156,7 @@ do {
         exit(exitCode)
 
     case "import":
-        guard args.count >= 2 else {
-            fputs("Usage: bioenv import FILE\n", stderr)
-            exit(1)
-        }
+        requireExactArgumentCount(args, count: 2, usageLines: ["Usage: bioenv import FILE"])
         let file = args[1]
         try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to import vars into:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getOrCreateKey(projectHash: store.projectHash, syncable: config.sync)
@@ -159,6 +170,7 @@ do {
         print("Imported \(imported.count) secrets from \(file)")
 
     case "list":
+        requireExactArgumentCount(args, count: 1, usageLines: ["Usage: bioenv list"])
         try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to list vars in:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getKey(projectHash: store.projectHash)
         let secrets = try store.readSecrets(key: encKey)
@@ -167,10 +179,7 @@ do {
         }
 
     case "remove":
-        guard args.count >= 2 else {
-            fputs("Usage: bioenv remove KEY\n", stderr)
-            exit(1)
-        }
+        requireExactArgumentCount(args, count: 2, usageLines: ["Usage: bioenv remove KEY"])
         let key = args[1]
         guard Store.isValidEnvVarName(key) else {
             fputs("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*\n", stderr)
@@ -187,6 +196,7 @@ do {
         print("Removed \(key)")
 
     case "status":
+        requireExactArgumentCount(args, count: 1, usageLines: ["Usage: bioenv status"])
         print("Directory: \(store.projectPath)")
         print("Project hash: \(store.projectHash)")
         print("Store: \(store.storePath)")
@@ -207,6 +217,7 @@ do {
         }
 
     case "destroy":
+        requireExactArgumentCount(args, count: 1, usageLines: ["Usage: bioenv destroy"])
         print("Directory: \(store.projectPath)")
         print("Keychain service: \(Keychain.serviceName(for: store.projectHash))")
         print("Store: \(store.storePath)")
@@ -223,12 +234,10 @@ do {
 
     case "config":
         if args.count < 2 {
+            requireExactArgumentCount(args, count: 1, usageLines: ["Usage: bioenv config"])
             print("sync: \(config.sync ? "on" : "off") (iCloud Keychain sync)")
         } else if args[1] == "sync" {
-            guard args.count >= 3 else {
-                print("sync: \(config.sync ? "on" : "off") (iCloud Keychain sync)")
-                break
-            }
+            requireExactArgumentCount(args, count: 3, usageLines: ["Usage: bioenv config sync on|off"])
             var newConfig = config
             switch args[2] {
             case "on", "true", "yes":
