@@ -35,6 +35,14 @@ struct ErrorFormattingTests {
         #expect(ErrorFormatting.userMessage(for: error) == "Encrypted store is corrupted or unreadable.")
     }
 
+    @Test func decodingTypeMismatchAlsoMeansCorruptedStore() {
+        let error = DecodingError.typeMismatch(
+            String.self,
+            .init(codingPath: [], debugDescription: "expected string value")
+        )
+        #expect(ErrorFormatting.userMessage(for: error) == "Encrypted store is corrupted or unreadable.")
+    }
+
     @Test func invalidSecretKeyInEncryptedStoreStaysReadable() {
         let error = StoreError.invalidSecretKey("BAD-KEY")
         #expect(

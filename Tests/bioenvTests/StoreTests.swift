@@ -1104,6 +1104,31 @@ struct StoreRoundTripTests {
         }
     }
 
+    @Test func readSecretsThrowsWhenDecryptedDataContainsNonStringValue() throws {
+        // A JSON object with a non-string value is structurally close to a valid
+        // store payload, but must still fail decoding as corrupted.
+        let (store, base) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let key = makeKey()
+        try store.ensureStoreDirectory()
+        let objectJSON = Data(#"{"PORT":5432,"API_KEY":"ok"}"#.utf8)
+        let ciphertext = try Crypto.encrypt(data: objectJSON, key: key)
+        try ciphertext.write(to: URL(fileURLWithPath: store.storePath))
+
+        do {
+            _ = try store.readSecrets(key: key)
+            Issue.record("Expected non-string JSON value to fail decoding")
+        } catch let error as DecodingError {
+            if case .typeMismatch = error {
+                // expected
+            } else {
+                Issue.record("Expected DecodingError.typeMismatch, got \(error)")
+            }
+        } catch {
+            Issue.record("Expected DecodingError, got \(error)")
+        }
+    }
+
     @Test func readSecretsRejectsInvalidSecretKeyInDecryptedStore() throws {
         let (store, base) = makeTempStore()
         defer { try? FileManager.default.removeItem(at: base) }
