@@ -112,6 +112,23 @@ struct ExecTests {
         }
     }
 
+    @Test func execRejectsNulContainingEnvironmentKeyBeforeSpawn() {
+        do {
+            _ = try Exec.run(
+                command: ["/usr/bin/env"],
+                environment: ["BIOENV\0EXEC_TEST_SECRET": "child-only"]
+            )
+            Issue.record("Expected Exec.run to reject NUL-containing environment key")
+        } catch let error as ExecError {
+            #expect(
+                error.description ==
+                "Cannot exec because an environment variable name contains a NUL byte."
+            )
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
     @Test func execRejectsNulContainingExecutableBeforeSpawn() {
         do {
             _ = try Exec.run(
@@ -186,6 +203,30 @@ struct ExecTests {
             #expect(
                 error.description ==
                 "Cannot exec with value for 'BIOENV_EXEC_TEST_SECRET' because it contains a NUL byte."
+            )
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+
+        #expect(bodyRan == false)
+    }
+
+    @Test func environmentPointersRejectNulContainingEnvironmentKeyBeforeBodyRuns() {
+        var bodyRan = false
+
+        do {
+            try Exec.withEnvironmentPointers(
+                baseEnvironment: ["PATH": "/usr/bin"],
+                overrides: ["BIOENV\0EXEC_TEST_SECRET": "child-only"],
+                { _ in
+                    bodyRan = true
+                }
+            )
+            Issue.record("Expected withEnvironmentPointers to reject NUL-containing environment key")
+        } catch let error as ExecError {
+            #expect(
+                error.description ==
+                "Cannot exec because an environment variable name contains a NUL byte."
             )
         } catch {
             Issue.record("Unexpected error: \(error)")

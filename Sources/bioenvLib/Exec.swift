@@ -5,7 +5,8 @@ public enum ExecError: Error, CustomStringConvertible {
     case invalidUsage
     case noCommand
     case invalidCommandArgument(index: Int)
-    case invalidEnvironmentEntry(key: String)
+    case invalidEnvironmentKey
+    case invalidEnvironmentValue(key: String)
     case waitFailed(Int32)
     case childExecutionFailed(command: String, errno: Int32)
 
@@ -17,7 +18,9 @@ public enum ExecError: Error, CustomStringConvertible {
             return "Usage: bioenv exec -- COMMAND [ARGS...]"
         case .invalidCommandArgument(let index):
             return "Cannot exec because command argument \(index + 1) contains a NUL byte."
-        case .invalidEnvironmentEntry(let key):
+        case .invalidEnvironmentKey:
+            return "Cannot exec because an environment variable name contains a NUL byte."
+        case .invalidEnvironmentValue(let key):
             return "Cannot exec with value for '\(key)' because it contains a NUL byte."
         case .waitFailed(let errno):
             return "Failed to wait for child process: \(String(cString: strerror(errno)))"
@@ -111,8 +114,11 @@ public enum Exec {
     ) throws -> [(key: String, value: String)] {
         var merged = baseEnvironment
         for (key, value) in overrides {
-            guard !key.contains("\0"), !value.contains("\0") else {
-                throw ExecError.invalidEnvironmentEntry(key: key)
+            guard !key.contains("\0") else {
+                throw ExecError.invalidEnvironmentKey
+            }
+            guard !value.contains("\0") else {
+                throw ExecError.invalidEnvironmentValue(key: key)
             }
             merged[key] = value
         }

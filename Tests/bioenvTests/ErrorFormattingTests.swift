@@ -118,8 +118,15 @@ struct ErrorFormattingTests {
 
     @Test func execNulValueErrorsStayReadable() {
         #expect(
-            ErrorFormatting.userMessage(for: ExecError.invalidEnvironmentEntry(key: "PRIVATE_KEY")) ==
+            ErrorFormatting.userMessage(for: ExecError.invalidEnvironmentValue(key: "PRIVATE_KEY")) ==
             "Cannot exec with value for 'PRIVATE_KEY' because it contains a NUL byte."
+        )
+    }
+
+    @Test func execNulEnvironmentKeyErrorsStayReadable() {
+        #expect(
+            ErrorFormatting.userMessage(for: ExecError.invalidEnvironmentKey) ==
+            "Cannot exec because an environment variable name contains a NUL byte."
         )
     }
 
