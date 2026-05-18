@@ -1,7 +1,204 @@
 import Foundation
 import Security
 import Testing
-import bioenvLib
+@testable import bioenvLib
+
+private final class MockKeychainSecurityBackend: @unchecked Sendable {
+    struct Entry {
+        let data: Data
+        let syncable: Bool
+        let accessible: String
+    }
+
+    var entries: [String: Entry] = [:]
+    var randomKeys: [Data]
+    var lastCopyMatchingQuery: [String: Any]?
+    var lastAddQuery: [String: Any]?
+    var lastDeleteQuery: [String: Any]?
+    var forcedCopyMatchingResult: (([String: Any]) -> (OSStatus, AnyObject?))?
+    var forcedAddStatus: OSStatus?
+    var forcedDeleteStatus: OSStatus?
+    var forcedRandomStatus: OSStatus?
+
+    init(randomKeys: [Data] = [Data((0..<32).map(UInt8.init))]) {
+        self.randomKeys = randomKeys
+    }
+
+    func client() -> Keychain.SecurityClient {
+        Keychain.SecurityClient(
+            copyMatching: { [self] query in
+                copyMatching(query: query)
+            },
+            add: { [self] query in
+                add(query: query)
+            },
+            delete: { [self] query in
+                delete(query: query)
+            },
+            randomCopyBytes: { [self] buffer in
+                randomCopyBytes(buffer: buffer)
+            }
+        )
+    }
+
+    private func identifier(for query: [String: Any]) -> String? {
+        guard
+            let service = query[kSecAttrService as String] as? String,
+            let account = query[kSecAttrAccount as String] as? String
+        else {
+            return nil
+        }
+        return "\(service)\u{0}\(account)"
+    }
+
+    private func syncableFilter(from query: [String: Any]) -> Bool? {
+        let key = kSecAttrSynchronizable as String
+        guard let value = query[key] else { return nil }
+        if let syncable = value as? Bool {
+            return syncable
+        }
+        if let syncable = value as? String, syncable == (kSecAttrSynchronizableAny as String) {
+            return nil
+        }
+        return nil
+    }
+
+    private func copyMatching(query: [String: Any]) -> (OSStatus, AnyObject?) {
+        lastCopyMatchingQuery = query
+
+        if let forcedCopyMatchingResult {
+            return forcedCopyMatchingResult(query)
+        }
+
+        guard let identifier = identifier(for: query) else {
+            return (errSecParam, nil)
+        }
+        guard let entry = entries[identifier] else {
+            return (errSecItemNotFound, nil)
+        }
+
+        if let syncableFilter = syncableFilter(from: query), syncableFilter != entry.syncable {
+            return (errSecItemNotFound, nil)
+        }
+
+        if query[kSecReturnData as String] as? Bool == true {
+            return (errSecSuccess, entry.data as AnyObject)
+        }
+        if query[kSecReturnAttributes as String] as? Bool == true {
+            return (errSecSuccess, [
+                kSecAttrService as String: query[kSecAttrService as String] as Any,
+                kSecAttrAccount as String: query[kSecAttrAccount as String] as Any,
+                kSecAttrSynchronizable as String: entry.syncable,
+                kSecAttrAccessible as String: entry.accessible,
+            ] as NSDictionary)
+        }
+        return (errSecSuccess, nil)
+    }
+
+    private func add(query: [String: Any]) -> OSStatus {
+        lastAddQuery = query
+
+        if let forcedAddStatus {
+            return forcedAddStatus
+        }
+
+        guard
+            let identifier = identifier(for: query),
+            let data = query[kSecValueData as String] as? Data
+        else {
+            return errSecParam
+        }
+
+        if entries[identifier] != nil {
+            return errSecDuplicateItem
+        }
+
+        let syncable = query[kSecAttrSynchronizable as String] as? Bool ?? false
+        let accessible = query[kSecAttrAccessible as String] as? String ?? ""
+        entries[identifier] = Entry(data: data, syncable: syncable, accessible: accessible)
+        return errSecSuccess
+    }
+
+    private func delete(query: [String: Any]) -> OSStatus {
+        lastDeleteQuery = query
+
+        if let forcedDeleteStatus {
+            return forcedDeleteStatus
+        }
+
+        guard let identifier = identifier(for: query) else {
+            return errSecParam
+        }
+
+        return entries.removeValue(forKey: identifier) == nil ? errSecItemNotFound : errSecSuccess
+    }
+
+    private func randomCopyBytes(buffer: UnsafeMutableRawBufferPointer) -> OSStatus {
+        if let forcedRandomStatus {
+            return forcedRandomStatus
+        }
+        guard let nextKey = randomKeys.isEmpty ? nil : randomKeys.removeFirst() else {
+            return errSecAllocate
+        }
+        guard nextKey.count == buffer.count else {
+            return errSecParam
+        }
+        nextKey.withUnsafeBytes { source in
+            buffer.copyMemory(from: source)
+        }
+        return errSecSuccess
+    }
+}
+
+private func withMockKeychain<T>(
+    randomKeys: [Data] = [Data((0..<32).map(UInt8.init))],
+    body: (MockKeychainSecurityBackend) throws -> T
+) rethrows -> T {
+    let backend = MockKeychainSecurityBackend(randomKeys: randomKeys)
+    return try Keychain.withSecurityClient(backend.client()) {
+        try body(backend)
+    }
+}
+
+private func uniqueKeychainTestHash() -> String {
+    String(UUID().uuidString.lowercased().filter { $0.isHexDigit }.prefix(16))
+}
+
+private func deleteDirectKeychainItem(projectHash: String) {
+    let query: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: Keychain.serviceName(for: projectHash),
+        kSecAttrAccount as String: "encryption-key",
+        kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
+    ]
+    SecItemDelete(query as CFDictionary)
+}
+
+private func canUseDirectKeychainItem(syncable: Bool) -> Bool {
+    let hash = uniqueKeychainTestHash()
+    defer { deleteDirectKeychainItem(projectHash: hash) }
+
+    let accessibility = syncable
+        ? kSecAttrAccessibleWhenUnlocked
+        : kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+
+    let query: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: Keychain.serviceName(for: hash),
+        kSecAttrAccount as String: "encryption-key",
+        kSecValueData as String: Data(repeating: 0, count: 32),
+        kSecAttrAccessible as String: accessibility,
+        kSecAttrSynchronizable as String: syncable,
+    ]
+    return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+}
+
+private let keychainIntegrationAvailable = canUseDirectKeychainItem(syncable: false)
+
+private let keychainSyncableIntegrationAvailable: Bool = {
+    guard keychainIntegrationAvailable else { return false }
+    return canUseDirectKeychainItem(syncable: true)
+}()
 
 // MARK: - Integration tests (require a macOS Keychain; no Touch ID needed)
 
@@ -11,17 +208,36 @@ import bioenvLib
 @Suite("Keychain.CRUD", .serialized)
 struct KeychainCRUDTests {
     private func uniqueHash() -> String {
-        String(UUID().uuidString.lowercased().filter { $0.isHexDigit }.prefix(16))
+        uniqueKeychainTestHash()
     }
 
-    @Test func createKeyReturns32Bytes() throws {
+    private func attributes(for hash: String, syncable: Any = kSecAttrSynchronizableAny) throws -> [String: Any]? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Keychain.serviceName(for: hash),
+            kSecAttrAccount as String: "encryption-key",
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecAttrSynchronizable as String: syncable,
+        ]
+
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            return nil
+        }
+        #expect(status == errSecSuccess)
+        return result as? [String: Any]
+    }
+
+    @Test(.enabled(if: keychainIntegrationAvailable)) func createKeyReturns32Bytes() throws {
         let hash = uniqueHash()
         defer { try? Keychain.deleteKey(projectHash: hash) }
         let key = try Keychain.createKey(projectHash: hash)
         #expect(key.count == 32)
     }
 
-    @Test func getKeyRetrievesSameKeyAsCreated() throws {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func getKeyRetrievesSameKeyAsCreated() throws {
         let hash = uniqueHash()
         defer { try? Keychain.deleteKey(projectHash: hash) }
         let created = try Keychain.createKey(projectHash: hash)
@@ -29,7 +245,7 @@ struct KeychainCRUDTests {
         #expect(created == retrieved)
     }
 
-    @Test func getKeyThrowsKeyNotFoundError() {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func getKeyThrowsKeyNotFoundError() {
         let hash = uniqueHash()
         do {
             _ = try Keychain.getKey(projectHash: hash)
@@ -41,7 +257,7 @@ struct KeychainCRUDTests {
         }
     }
 
-    @Test func deleteKeyRemovesExistingKey() throws {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func deleteKeyRemovesExistingKey() throws {
         let hash = uniqueHash()
         _ = try Keychain.createKey(projectHash: hash)
         try Keychain.deleteKey(projectHash: hash)
@@ -50,21 +266,21 @@ struct KeychainCRUDTests {
         }
     }
 
-    @Test func deleteKeyIsIdempotentForMissingKey() {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func deleteKeyIsIdempotentForMissingKey() {
         let hash = uniqueHash()
         #expect(throws: Never.self) {
             try Keychain.deleteKey(projectHash: hash)
         }
     }
 
-    @Test func getOrCreateKeyCreatesKeyWhenMissing() throws {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func getOrCreateKeyCreatesKeyWhenMissing() throws {
         let hash = uniqueHash()
         defer { try? Keychain.deleteKey(projectHash: hash) }
         let key = try Keychain.getOrCreateKey(projectHash: hash)
         #expect(key.count == 32)
     }
 
-    @Test func getOrCreateKeyReturnsSameKeyOnSubsequentCalls() throws {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func getOrCreateKeyReturnsSameKeyOnSubsequentCalls() throws {
         let hash = uniqueHash()
         defer { try? Keychain.deleteKey(projectHash: hash) }
         let first = try Keychain.getOrCreateKey(projectHash: hash)
@@ -72,19 +288,19 @@ struct KeychainCRUDTests {
         #expect(first == second)
     }
 
-    @Test func hasKeyReturnsFalseWhenMissing() throws {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func hasKeyReturnsFalseWhenMissing() throws {
         let hash = uniqueHash()
         #expect(try Keychain.hasKey(projectHash: hash) == false)
     }
 
-    @Test func hasKeyReturnsTrueAfterCreate() throws {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func hasKeyReturnsTrueAfterCreate() throws {
         let hash = uniqueHash()
         defer { try? Keychain.deleteKey(projectHash: hash) }
         _ = try Keychain.createKey(projectHash: hash)
         #expect(try Keychain.hasKey(projectHash: hash))
     }
 
-    @Test func createdKeysAreRandom() throws {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func createdKeysAreRandom() throws {
         let hash1 = uniqueHash()
         let hash2 = uniqueHash()
         defer {
@@ -96,7 +312,7 @@ struct KeychainCRUDTests {
         #expect(key1 != key2)
     }
 
-    @Test func createKeyThrowsOnDuplicateHash() throws {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func createKeyThrowsOnDuplicateHash() throws {
         let hash = uniqueHash()
         defer { try? Keychain.deleteKey(projectHash: hash) }
         _ = try Keychain.createKey(projectHash: hash)
@@ -105,30 +321,66 @@ struct KeychainCRUDTests {
         }
     }
 
-    @Test func getOrCreateKeyDefaultIsNonSyncable() throws {
+    @Test(.enabled(if: keychainIntegrationAvailable)) func getOrCreateKeyDefaultIsNonSyncable() throws {
         let hash = uniqueHash()
         defer { try? Keychain.deleteKey(projectHash: hash) }
         _ = try Keychain.getOrCreateKey(projectHash: hash)
 
-        let service = Keychain.serviceName(for: hash)
+        #expect(try attributes(for: hash, syncable: true) == nil)
 
-        // A query restricted to syncable=true must NOT find the item.
-        let syncableQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: "encryption-key",
-            kSecAttrSynchronizable as String: true,
-        ]
-        #expect(SecItemCopyMatching(syncableQuery as CFDictionary, nil) == errSecItemNotFound)
+        let attrs = try #require(try attributes(for: hash))
+        #expect(attrs[kSecAttrSynchronizable as String] as? Bool == false)
+        #expect(attrs[kSecAttrAccessible as String] as? String == (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String))
+    }
 
-        // A query with no syncable restriction must find the item.
-        let anyQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: "encryption-key",
-            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
-        ]
-        #expect(SecItemCopyMatching(anyQuery as CFDictionary, nil) == errSecSuccess)
+    @Test(.enabled(if: keychainSyncableIntegrationAvailable)) func createKeySyncableTrueUsesWhenUnlockedAccessibility() throws {
+        let hash = uniqueHash()
+        defer { try? Keychain.deleteKey(projectHash: hash) }
+        _ = try Keychain.createKey(projectHash: hash, syncable: true)
+
+        let attrs = try #require(try attributes(for: hash, syncable: true))
+        #expect(attrs[kSecAttrSynchronizable as String] as? Bool == true)
+        #expect(attrs[kSecAttrAccessible as String] as? String == (kSecAttrAccessibleWhenUnlocked as String))
+    }
+
+    @Test func mockBackendUsesSyncableTrueAccessibility() throws {
+        try withMockKeychain { backend in
+            let hash = uniqueHash()
+            _ = try Keychain.createKey(projectHash: hash, syncable: true)
+
+            let service = Keychain.serviceName(for: hash)
+            let identifier = "\(service)\u{0}encryption-key"
+            let entry = try #require(backend.entries[identifier])
+            #expect(entry.syncable)
+            #expect(entry.accessible == (kSecAttrAccessibleWhenUnlocked as String))
+        }
+    }
+
+    @Test func mockBackendGetKeyThrowsWhenKeychainReturnsUnexpectedDataType() {
+        withMockKeychain { backend in
+            backend.forcedCopyMatchingResult = { _ in
+                (errSecSuccess, "not-data" as NSString)
+            }
+
+            #expect(throws: KeychainError.self) {
+                try Keychain.getKey(projectHash: uniqueHash())
+            }
+        }
+    }
+
+    @Test func mockBackendCreateKeyPropagatesRandomGenerationFailure() {
+        withMockKeychain { backend in
+            backend.forcedRandomStatus = errSecAllocate
+
+            do {
+                _ = try Keychain.createKey(projectHash: uniqueHash())
+                Issue.record("Expected KeychainError to be thrown")
+            } catch let error as KeychainError {
+                #expect(error.status == errSecAllocate)
+            } catch {
+                Issue.record("Expected KeychainError, got \(error)")
+            }
+        }
     }
 }
 
