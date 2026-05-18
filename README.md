@@ -120,7 +120,7 @@ Now when you `cd` into the project, direnv triggers `bioenv load`, Touch ID prom
 | `bioenv import FILE` | Yes | Bulk import from a `.env` file |
 | `bioenv list` | Yes | List secret names (no values) |
 | `bioenv remove KEY` | Yes | Delete a secret |
-| `bioenv status` | No* | Show status for the current directory and prompt only if counting secrets |
+| `bioenv status` | Conditional | Show status for the current directory and prompt only if counting secrets |
 | `bioenv destroy` | No | Delete the Keychain key and encrypted store after explicit confirmation |
 | `bioenv config` | No | Show current configuration |
 | `bioenv config sync on\|off` | No | Toggle iCloud Keychain sync (default: off) |
@@ -140,7 +140,7 @@ Each project directory gets its own encryption key and encrypted store:
 1. `bioenv init` generates an AES-256 key, stores it in macOS Keychain, and creates an empty encrypted file
 2. Project identity = SHA-256 of the absolute directory path (so each project is isolated)
 3. Secrets are stored as AES-256-GCM encrypted JSON
-4. Every command except `init` requires Touch ID (or system password) before the encryption key is used
+4. Commands that decrypt or modify secrets require Touch ID (or system password) before the encryption key is used
 5. `bioenv load` outputs shell `export` statements — designed for `eval "$(bioenv load)"`
 6. `bioenv exec -- ...` spawns a child process with a temporary environment containing the project secrets, leaving the parent shell untouched
 
