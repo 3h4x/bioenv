@@ -123,7 +123,7 @@ Now when you `cd` into the project, direnv triggers `bioenv load`, Touch ID prom
 | `bioenv status` | Conditional | Show status for the current directory and prompt only if counting secrets |
 | `bioenv destroy` | No | Delete the Keychain key and encrypted store after explicit confirmation |
 | `bioenv config` | No | Show current configuration |
-| `bioenv config sync on\|off` | No | Toggle iCloud Keychain sync (default: off) |
+| `bioenv config sync on\|off\|true\|false\|yes\|no` | No | Toggle iCloud Keychain sync (default: off) |
 | `bioenv version` | No | Show installed version |
 | `bioenv --version` | No | Alias for `version` |
 | `bioenv help`, `bioenv --help`, `bioenv -h` | No | Show usage text |
@@ -152,6 +152,8 @@ Config is stored at `~/.bioenv/config.json`.
 bioenv config              # show current settings
 bioenv config sync off     # keys stay on this Mac only (default)
 bioenv config sync on      # sync keys via iCloud Keychain (requires Apple Developer cert)
+bioenv config sync yes     # alias for `on`
+bioenv config sync no      # alias for `off`
 ```
 
 **Sync note:** iCloud Keychain sync requires the binary to be signed with an Apple Developer certificate ($99/yr). With ad-hoc signing (the default), keys are device-only. If you get a new Mac, you'll need to re-import your secrets. Keep your `.env` files in a password manager as the source of truth.

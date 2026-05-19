@@ -67,7 +67,7 @@ bioenv remove KEY        # Remove a secret (Touch ID)
 bioenv status            # Show status for current directory
 bioenv destroy           # Delete Keychain key and encrypted store (irreversible)
 bioenv config            # Show current configuration
-bioenv config sync on|off  # Enable/disable iCloud Keychain sync (default: off, requires Apple Developer cert)
+bioenv config sync on|off|true|false|yes|no  # Enable/disable iCloud Keychain sync (default: off, requires Apple Developer cert)
 bioenv version             # Show installed version
 bioenv --version           # Alias for version
 bioenv help | --help | -h  # Show usage text

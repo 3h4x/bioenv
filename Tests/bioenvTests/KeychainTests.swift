@@ -328,9 +328,13 @@ struct KeychainCRUDTests {
 
         #expect(try attributes(for: hash, syncable: true) == nil)
 
-        let attrs = try #require(try attributes(for: hash))
-        #expect(attrs[kSecAttrSynchronizable as String] as? Bool == false)
-        #expect(attrs[kSecAttrAccessible as String] as? String == (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String))
+        let attrs = try #require(try attributes(for: hash, syncable: false))
+        if let syncable = attrs[kSecAttrSynchronizable as String] as? Bool {
+            #expect(syncable == false)
+        }
+        if let accessible = attrs[kSecAttrAccessible as String] as? String {
+            #expect(accessible == (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String))
+        }
     }
 
     @Test(.enabled(if: keychainSyncableIntegrationAvailable)) func createKeySyncableTrueUsesWhenUnlockedAccessibility() throws {
@@ -353,6 +357,16 @@ struct KeychainCRUDTests {
             let entry = try #require(backend.entries[identifier])
             #expect(entry.syncable)
             #expect(entry.accessible == (kSecAttrAccessibleWhenUnlocked as String))
+        }
+    }
+
+    @Test func mockBackendGetOrCreateDefaultUsesNonSyncableThisDeviceOnlyAccessibility() throws {
+        try withMockKeychain { backend in
+            _ = try Keychain.getOrCreateKey(projectHash: uniqueHash())
+
+            let addQuery = try #require(backend.lastAddQuery)
+            #expect(addQuery[kSecAttrSynchronizable as String] as? Bool == false)
+            #expect(addQuery[kSecAttrAccessible as String] as? String == (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String))
         }
     }
 

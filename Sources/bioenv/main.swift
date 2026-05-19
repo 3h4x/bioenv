@@ -31,7 +31,8 @@ func printUsage() {
       bioenv status                Show status for current directory
       bioenv destroy               Delete Keychain key and encrypted store
       bioenv config                Show current configuration
-      bioenv config sync on|off    Enable/disable iCloud Keychain sync (default: off)
+      bioenv config sync on|off|true|false|yes|no
+                                   Enable/disable iCloud Keychain sync (default: off)
       bioenv version               Show version
       bioenv --version             Show version
       bioenv help                  Show this usage text
@@ -237,7 +238,7 @@ do {
             requireExactArgumentCount(args, count: 1, usageLines: ["Usage: bioenv config"])
             print("sync: \(config.sync ? "on" : "off") (iCloud Keychain sync)")
         } else if args[1] == "sync" {
-            requireExactArgumentCount(args, count: 3, usageLines: ["Usage: bioenv config sync on|off"])
+            requireExactArgumentCount(args, count: 3, usageLines: ["Usage: bioenv config sync on|off|true|false|yes|no"])
             var newConfig = config
             switch args[2] {
             case "on", "true", "yes":
@@ -245,7 +246,7 @@ do {
             case "off", "false", "no":
                 newConfig.sync = false
             default:
-                fputs("Usage: bioenv config sync on|off\n", stderr)
+                fputs("Usage: bioenv config sync on|off|true|false|yes|no\n", stderr)
                 exit(1)
             }
             try newConfig.save()
@@ -254,7 +255,7 @@ do {
                 print("Note: existing projects keep their current sync setting. Re-init to change them.")
             }
         } else {
-            fputs("Usage: bioenv config sync on|off\n", stderr)
+            fputs("Usage: bioenv config sync on|off|true|false|yes|no\n", stderr)
             exit(1)
         }
 
