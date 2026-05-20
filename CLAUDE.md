@@ -115,7 +115,7 @@ eval "$(bioenv load)"
 1. Run tests with `swift test`.
 2. Tests live in `Tests/bioenvTests/`; use the Swift Testing framework (`@Suite`, `@Test`, `#expect`).
 3. Test `bioenvLib` only — `main.swift` dispatch is not unit-tested.
-4. Do not mock Keychain or Touch ID; skip integration paths that require hardware. Mark them clearly if added.
+4. Prefer mock-based Keychain and Touch ID unit tests by default. Keep any real Keychain integration coverage clearly marked and opt-in.
 5. Use `FileManager.default.temporaryDirectory` + `UUID()` for temp files; always clean up with `defer { try? FileManager.default.removeItem(at: ...) }`.
 6. Run `swift test` before every commit.
 7. New public functions in `Store`, `Crypto`, or `Keychain` require corresponding tests.
@@ -123,7 +123,7 @@ eval "$(bioenv load)"
 9. Prefer regression tests for parsing, quoting, crypto, and error-reporting edge cases when fixing bugs; these have been the highest-churn areas in recent commits.
 10. If you change user-visible failure wording or add a new error-mapping path, extend `Tests/bioenvTests/ErrorFormattingTests.swift` in the same change.
 11. Skip unit tests for raw CLI usage/help text in `main.swift` unless that logic is first moved into `bioenvLib`.
-12. Keychain integration tests use the real login Keychain. Keep them isolated with unique synthetic project hashes and `defer` cleanup like `KeychainTests.swift`; never point a test at a real project path or persistent key name.
+12. Real Keychain integration tests are opt-in via `BIOENV_RUN_KEYCHAIN_INTEGRATION_TESTS=1`. Keep them isolated with unique synthetic project hashes and `defer` cleanup like `KeychainTests.swift`; never point a test at a real project path or persistent key name.
 13. If you change `.env` parsing, invalid-key handling, or multiline quoting behavior, add regression tests that cover both the returned key/value data and any intentional stderr warning/skip behavior.
 14. New public functions in `Exec` or changes to subprocess/environment behavior require matching coverage in `Tests/bioenvTests/ExecTests.swift`, including child exit status, parent-environment isolation, and secret-buffer scrubbing where relevant.
 15. If you change `.githooks/pre-push`, `Package.swift`, or the contributor setup flow, run both `swift test` and `swift build` before commit so the checked-in hook contract remains accurate.

@@ -193,7 +193,28 @@ private func canUseDirectKeychainItem(syncable: Bool) -> Bool {
     return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
 }
 
-private let keychainIntegrationAvailable = canUseDirectKeychainItem(syncable: false)
+private let keychainIntegrationOptInVariable = "BIOENV_RUN_KEYCHAIN_INTEGRATION_TESTS"
+
+private func isKeychainIntegrationEnabled(environment: [String: String]) -> Bool {
+    guard let rawValue = environment[keychainIntegrationOptInVariable] else {
+        return false
+    }
+
+    switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+    case "1", "true", "yes", "on":
+        return true
+    default:
+        return false
+    }
+}
+
+private let keychainIntegrationRequested =
+    isKeychainIntegrationEnabled(environment: ProcessInfo.processInfo.environment)
+
+private let keychainIntegrationAvailable: Bool = {
+    guard keychainIntegrationRequested else { return false }
+    return canUseDirectKeychainItem(syncable: false)
+}()
 
 private let keychainSyncableIntegrationAvailable: Bool = {
     guard keychainIntegrationAvailable else { return false }
@@ -204,6 +225,7 @@ private let keychainSyncableIntegrationAvailable: Bool = {
 
 /// These tests call SecItem* APIs directly on the macOS Keychain.
 /// They do NOT require Touch ID — only an unlocked Keychain (standard on any interactive Mac session).
+/// They are opt-in so normal `swift test` runs stay off the real login Keychain.
 /// Each test generates a unique project hash so it never conflicts with real bioenv entries.
 @Suite("Keychain.CRUD", .serialized)
 struct KeychainCRUDTests {
@@ -399,6 +421,37 @@ struct KeychainCRUDTests {
 }
 
 // MARK: - Non-integration tests
+
+@Suite("Keychain integration opt-in")
+struct KeychainIntegrationOptInTests {
+    @Test func missingVariableDisablesIntegration() {
+        #expect(isKeychainIntegrationEnabled(environment: [:]) == false)
+    }
+
+    @Test func truthyValuesEnableIntegration() {
+        let truthyValues = ["1", "true", "TRUE", " yes ", "On"]
+
+        for value in truthyValues {
+            #expect(
+                isKeychainIntegrationEnabled(
+                    environment: [keychainIntegrationOptInVariable: value]
+                )
+            )
+        }
+    }
+
+    @Test func falseyAndUnknownValuesKeepIntegrationDisabled() {
+        let falseyValues = ["0", "false", "off", "no", "", "maybe"]
+
+        for value in falseyValues {
+            #expect(
+                isKeychainIntegrationEnabled(
+                    environment: [keychainIntegrationOptInVariable: value]
+                ) == false
+            )
+        }
+    }
+}
 
 @Suite("Keychain.serviceName")
 struct KeychainServiceNameTests {
