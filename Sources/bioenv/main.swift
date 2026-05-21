@@ -1,7 +1,15 @@
 import Foundation
 import bioenvLib
 
-func failUsage(_ lines: [String]) -> Never {
+func failError(_ message: String) -> Never {
+    fputs("Error: \(message)\n", stderr)
+    exit(1)
+}
+
+func failUsage(_ lines: [String], error: String? = nil) -> Never {
+    if let error {
+        fputs("Error: \(error)\n", stderr)
+    }
     for line in lines {
         fputs(line + "\n", stderr)
     }
@@ -12,6 +20,13 @@ func requireExactArgumentCount(_ args: [String], count: Int, usageLines: [String
     guard args.count == count else {
         failUsage(usageLines)
     }
+}
+
+func requireValidSecretKey(_ key: String) -> String {
+    guard Store.isValidEnvVarName(key) else {
+        failError("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*")
+    }
+    return key
 }
 
 func printUsage() {
@@ -89,27 +104,30 @@ do {
             fputs("       echo VALUE | bioenv set KEY\n", stderr)
             exit(1)
         }
-        let key = args[1]
-        guard Store.isValidEnvVarName(key) else {
-            fputs("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*\n", stderr)
-            exit(1)
-        }
+        let key = requireValidSecretKey(args[1])
         let value: String
         if args.count >= 3 {
             if args.count > 3 {
-                fputs("Too many arguments: VALUE must be a single argument.\n", stderr)
-                fputs("Use quotes for values with spaces: bioenv set KEY 'hello world'\n", stderr)
-                fputs("Or pipe via stdin:                 echo VALUE | bioenv set KEY\n", stderr)
-                exit(1)
+                failUsage(
+                    [
+                        "Use quotes for values with spaces: bioenv set KEY 'hello world'",
+                        "Or pipe via stdin:                 echo VALUE | bioenv set KEY",
+                    ],
+                    error: "Too many arguments: VALUE must be a single argument."
+                )
             }
             value = args[2]
         } else {
             // Read all stdin so multi-line values (PEM keys, certificates) are
             // stored intact, not silently truncated at the first newline.
             let raw = FileHandle.standardInput.readDataToEndOfFile()
-            guard !raw.isEmpty, let stdinString = String(data: raw, encoding: .utf8) else {
+            guard !raw.isEmpty else {
                 fputs("Usage: bioenv set KEY VALUE\n", stderr)
+                fputs("       echo VALUE | bioenv set KEY\n", stderr)
                 exit(1)
+            }
+            guard let stdinString = String(data: raw, encoding: .utf8) else {
+                failError("Standard input for 'bioenv set KEY' must be valid UTF-8.")
             }
             value = Store.stripOneTrailingNewline(stdinString)
         }
@@ -124,17 +142,12 @@ do {
 
     case "get":
         requireExactArgumentCount(args, count: 2, usageLines: ["Usage: bioenv get KEY"])
-        let key = args[1]
-        guard Store.isValidEnvVarName(key) else {
-            fputs("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*\n", stderr)
-            exit(1)
-        }
+        let key = requireValidSecretKey(args[1])
         try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to get var from:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getKey(projectHash: store.projectHash)
         let secrets = try store.readSecrets(key: encKey)
         guard let value = secrets[key] else {
-            fputs("Key '\(key)' not found\n", stderr)
-            exit(1)
+            failError("Key '\(key)' not found")
         }
         print(value)
 
@@ -181,17 +194,12 @@ do {
 
     case "remove":
         requireExactArgumentCount(args, count: 2, usageLines: ["Usage: bioenv remove KEY"])
-        let key = args[1]
-        guard Store.isValidEnvVarName(key) else {
-            fputs("Invalid key '\(key)': must match [A-Za-z_][A-Za-z0-9_]*\n", stderr)
-            exit(1)
-        }
+        let key = requireValidSecretKey(args[1])
         try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to remove var from:\n\(dirPath)\n\nAuthenticate to continue")
         let encKey = try Keychain.getKey(projectHash: store.projectHash)
         var secrets = try store.readSecrets(key: encKey)
         guard secrets.removeValue(forKey: key) != nil else {
-            fputs("Key '\(key)' not found\n", stderr)
-            exit(1)
+            failError("Key '\(key)' not found")
         }
         try store.writeSecrets(secrets, key: encKey)
         print("Removed \(key)")
@@ -260,7 +268,7 @@ do {
         }
 
     default:
-        fputs("Unknown command: \(command)\n", stderr)
+        fputs("Error: Unknown command: \(command)\n", stderr)
         printUsage()
         exit(1)
     }
