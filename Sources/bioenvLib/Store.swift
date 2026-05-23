@@ -198,9 +198,10 @@ public struct Store {
                 continue
             }
 
-            // Strip "export " prefix
-            if trimmed.hasPrefix("export ") {
-                trimmed = String(trimmed.dropFirst(7)).trimmingCharacters(in: .whitespaces)
+            // Strip "export" when it is followed by shell whitespace, not when it
+            // is part of the variable name itself (for example, "exportFOO=bar").
+            if let exportStripped = stripExportPrefix(from: trimmed) {
+                trimmed = exportStripped
             }
 
             guard let equalsIndex = trimmed.firstIndex(of: "=") else {
@@ -319,6 +320,15 @@ public struct Store {
             return String(value[value.startIndex..<commentRange.lowerBound])
         }
         return value
+    }
+
+    private static func stripExportPrefix(from value: String) -> String? {
+        guard value.hasPrefix("export") else { return nil }
+
+        let exportEnd = value.index(value.startIndex, offsetBy: 6)
+        guard exportEnd < value.endIndex, value[exportEnd].isWhitespace else { return nil }
+
+        return String(value[exportEnd...]).trimmingCharacters(in: .whitespaces)
     }
 
     private static func extractClosedQuotedValue(from value: String, openingQuote: Character) -> String? {

@@ -398,6 +398,16 @@ struct ParseEnvFileTests {
         #expect(result["FOO"] == "bar")
     }
 
+    @Test func exportPrefixWithTabStripped() throws {
+        let result = try parse("export\tFOO=bar\n")
+        #expect(result["FOO"] == "bar")
+    }
+
+    @Test func exportPrefixWithMixedWhitespaceStripped() throws {
+        let result = try parse("export \t  FOO=bar\n")
+        #expect(result["FOO"] == "bar")
+    }
+
     // MARK: - Quoted values
 
     @Test func singleQuotedValue() throws {
