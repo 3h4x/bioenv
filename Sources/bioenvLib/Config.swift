@@ -1,5 +1,16 @@
 import Foundation
 
+public enum ConfigError: Error, CustomStringConvertible, Equatable {
+    case invalidSyncValue(String)
+
+    public var description: String {
+        switch self {
+        case .invalidSyncValue(let value):
+            return "Invalid sync value '\(value)'. Use one of: on, off, true, false, yes, no."
+        }
+    }
+}
+
 public struct BioenvConfig: Codable, Sendable {
     public var sync: Bool
 
@@ -12,6 +23,17 @@ public struct BioenvConfig: Codable, Sendable {
     public static var configPath: String {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
         return "\(homeDir)/.bioenv/config.json"
+    }
+
+    public static func parseSyncValue(_ rawValue: String) throws -> Bool {
+        switch rawValue.lowercased() {
+        case "on", "true", "yes":
+            return true
+        case "off", "false", "no":
+            return false
+        default:
+            throw ConfigError.invalidSyncValue(rawValue)
+        }
     }
 
     public static func load(from path: String = BioenvConfig.configPath) -> BioenvConfig {

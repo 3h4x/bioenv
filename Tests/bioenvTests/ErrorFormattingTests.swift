@@ -51,6 +51,14 @@ struct ErrorFormattingTests {
         )
     }
 
+    @Test func invalidConfigSyncValueStaysReadable() {
+        let error = ConfigError.invalidSyncValue("maybe")
+        #expect(
+            ErrorFormatting.userMessage(for: error) ==
+            "Invalid sync value 'maybe'. Use one of: on, off, true, false, yes, no."
+        )
+    }
+
     @Test func missingFileUsesReadablePathMessage() {
         let error = NSError(
             domain: NSCocoaErrorDomain,

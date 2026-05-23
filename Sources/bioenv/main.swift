@@ -248,15 +248,7 @@ do {
         } else if args[1] == "sync" {
             requireExactArgumentCount(args, count: 3, usageLines: ["Usage: bioenv config sync on|off|true|false|yes|no"])
             var newConfig = config
-            switch args[2] {
-            case "on", "true", "yes":
-                newConfig.sync = true
-            case "off", "false", "no":
-                newConfig.sync = false
-            default:
-                fputs("Usage: bioenv config sync on|off|true|false|yes|no\n", stderr)
-                exit(1)
-            }
+            newConfig.sync = try BioenvConfig.parseSyncValue(args[2])
             try newConfig.save()
             print("sync: \(newConfig.sync ? "on" : "off")")
             if newConfig.sync != config.sync {

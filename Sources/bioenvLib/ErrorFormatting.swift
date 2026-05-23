@@ -19,6 +19,10 @@ public enum ErrorFormatting {
             return formatStoreError(storeError)
         }
 
+        if let configError = error as? ConfigError {
+            return configError.description
+        }
+
         if let execError = error as? ExecError {
             return execError.description
         }

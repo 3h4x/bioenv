@@ -169,4 +169,29 @@ struct BioenvConfigTests {
         let config = try? JSONDecoder().decode(BioenvConfig.self, from: json)
         #expect(config?.sync == true)
     }
+
+    // MARK: - sync value parsing
+
+    @Test func parseSyncValueAcceptsEnabledAliases() throws {
+        #expect(try BioenvConfig.parseSyncValue("on") == true)
+        #expect(try BioenvConfig.parseSyncValue("true") == true)
+        #expect(try BioenvConfig.parseSyncValue("yes") == true)
+    }
+
+    @Test func parseSyncValueAcceptsDisabledAliases() throws {
+        #expect(try BioenvConfig.parseSyncValue("off") == false)
+        #expect(try BioenvConfig.parseSyncValue("false") == false)
+        #expect(try BioenvConfig.parseSyncValue("no") == false)
+    }
+
+    @Test func parseSyncValueIsCaseInsensitive() throws {
+        #expect(try BioenvConfig.parseSyncValue("TRUE") == true)
+        #expect(try BioenvConfig.parseSyncValue("Off") == false)
+    }
+
+    @Test func parseSyncValueRejectsUnknownValue() {
+        #expect(throws: ConfigError.self) {
+            _ = try BioenvConfig.parseSyncValue("maybe")
+        }
+    }
 }
