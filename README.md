@@ -14,6 +14,12 @@ chmod +x ~/bin/bioenv
 codesign -s - -f ~/bin/bioenv
 ```
 
+Or, from a clone of this repo:
+
+```bash
+make install   # downloads latest release binary to ~/bin and signs it
+```
+
 **Option 2: Build from source**
 
 Requires macOS with Xcode or Command Line Tools.
@@ -21,8 +27,8 @@ Requires macOS with Xcode or Command Line Tools.
 ```bash
 git clone https://github.com/3h4x/bioenv.git
 cd bioenv
-make install   # builds, signs, and copies to ~/bin
-make setup     # activates pre-push hook (optional, for contributors)
+make install-from-source  # builds, signs, and copies to ~/bin
+make setup                # activates pre-push hook (optional, for contributors)
 ```
 
 Make sure `~/bin` is in your `PATH`.

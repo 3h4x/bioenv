@@ -19,8 +19,9 @@ Biometric-protected environment variables using macOS Touch ID + Keychain.
 ## Build & Install
 
 ```bash
-make install   # build release, sign, copy to ~/bin
-make setup     # activate .githooks/pre-push (run once after cloning)
+make install              # download latest release binary from GitHub, sign, copy to ~/bin
+make install-from-source  # build locally, sign, copy to ~/bin
+make setup                # activate .githooks/pre-push (run once after cloning)
 ```
 
 Or manually:
