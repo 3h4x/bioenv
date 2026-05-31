@@ -125,7 +125,7 @@ Now when you `cd` into the project, direnv triggers `bioenv load`, Touch ID prom
 | `bioenv exec -- COMMAND [ARGS...]` | Yes | Run one command with project secrets injected into its environment |
 | `bioenv import FILE` | Yes | Bulk import from a `.env` file |
 | `bioenv list` | Yes | List secret names (no values) |
-| `bioenv remove KEY` | Yes | Delete a secret |
+| `bioenv remove KEY` | Yes | Delete a secret (aliases: `rm`, `del`) |
 | `bioenv status` | Conditional | Show status for the current directory and prompt only if counting secrets |
 | `bioenv destroy` | No | Delete the Keychain key and encrypted store after explicit confirmation |
 | `bioenv config` | No | Show current configuration |

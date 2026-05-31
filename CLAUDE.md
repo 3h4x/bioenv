@@ -64,7 +64,7 @@ bioenv load              # Print export statements for all secrets (Touch ID)
 bioenv exec -- COMMAND [ARGS...]  # Run one command with project secrets in its environment (Touch ID)
 bioenv import FILE       # Bulk import from .env file (Touch ID)
 bioenv list              # List key names (Touch ID)
-bioenv remove KEY        # Remove a secret (Touch ID)
+bioenv remove KEY        # Remove a secret — aliases: rm, del (Touch ID)
 bioenv status            # Show status for current directory
 bioenv destroy           # Delete Keychain key and encrypted store (irreversible)
 bioenv config            # Show current configuration

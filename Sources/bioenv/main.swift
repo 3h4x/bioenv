@@ -42,7 +42,7 @@ func printUsage() {
       bioenv exec -- COMMAND ...   Run a command with project secrets in its environment
       bioenv import FILE           Import secrets from .env file
       bioenv list                  List secret key names
-      bioenv remove KEY            Remove a secret
+      bioenv remove KEY            Remove a secret (aliases: rm, del)
       bioenv status                Show status for current directory
       bioenv destroy               Delete Keychain key and encrypted store
       bioenv config                Show current configuration
@@ -192,7 +192,7 @@ do {
             print(key)
         }
 
-    case "remove":
+    case "remove", "rm", "del":
         requireExactArgumentCount(args, count: 2, usageLines: ["Usage: bioenv remove KEY"])
         let key = requireValidSecretKey(args[1])
         try Keychain.authenticate(reason: "\nbioenv (\(appVersion)) is trying to remove var from:\n\(dirPath)\n\nAuthenticate to continue")
