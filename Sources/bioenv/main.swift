@@ -36,7 +36,8 @@ func printUsage() {
     Usage:
       bioenv init                  Initialize bioenv for current directory
       bioenv set KEY VALUE         Set a secret
-      bioenv set KEY               Set a secret from stdin
+      bioenv set KEY               Set a secret from stdin (reads until EOF;
+                                   press Ctrl+D to finish, or pipe: echo VAL | bioenv set KEY)
       bioenv get KEY               Get a secret value
       bioenv load                  Print all secrets as export statements
       bioenv exec -- COMMAND ...   Run a command with project secrets in its environment

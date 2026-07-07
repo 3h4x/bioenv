@@ -47,6 +47,13 @@ bioenv set DATABASE_URL "postgres://user:pass@localhost/mydb"
 bioenv set API_KEY "sk-abc123"
 bioenv set STRIPE_SECRET "whsec_..."
 
+# Reading from stdin (omit VALUE) — good for multi-line keys or keeping
+# the value out of shell history. Reads until EOF: press Ctrl+D to finish.
+echo "sk-abc123"        | bioenv set API_KEY        # pipe a value
+pbpaste                 | bioenv set BONKER_PRIVATE_KEY  # from clipboard
+bioenv set TLS_CERT < cert.pem                      # from a file
+bioenv set MULTILINE_KEY                            # type/paste, then Ctrl+D
+
 # 4. Use them
 eval "$(bioenv load)"    # exports all secrets into current shell
 bioenv exec -- env       # injects secrets into one subprocess only
