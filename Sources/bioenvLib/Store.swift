@@ -36,7 +36,9 @@ public struct Store {
     public let storePath: String
 
     public init(projectPath: String? = nil, storeDir: String? = nil) {
-        let path = Self.normalizeProjectPath(projectPath ?? FileManager.default.currentDirectoryPath)
+        let inputPath = projectPath ?? FileManager.default.currentDirectoryPath
+        let normalizedInput = Self.normalizeProjectPath(inputPath)
+        let path = Self.resolvePrimaryWorktreePath(from: normalizedInput) ?? normalizedInput
         self.projectPath = path
 
         let hash = SHA256.hash(data: Data(path.utf8))
@@ -58,6 +60,47 @@ public struct Store {
         let absolutePath = (FileManager.default.currentDirectoryPath as NSString)
             .appendingPathComponent(expandedPath)
         return (absolutePath as NSString).standardizingPath
+    }
+
+    /// Resolves a git worktree (or bare-repo-with-worktrees hub) to the repository's
+    /// primary location, so every linked worktree of the same repository shares one
+    /// bioenv store instead of each getting its own empty, uninitialized project.
+    ///
+    /// `git worktree list --porcelain` always lists the primary repository first —
+    /// the main checkout for a normal repo, or the bare hub directory for a repo set
+    /// up as a bare object store with linked worktrees. Returns nil (falling back to
+    /// the raw path) when `path` isn't inside a git repository at all, so behavior for
+    /// non-git projects is unchanged.
+    private static func resolvePrimaryWorktreePath(from path: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["git", "-C", path, "worktree", "list", "--porcelain"]
+
+        let stdoutPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+
+        let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0,
+              let output = String(data: outputData, encoding: .utf8) else {
+            return nil
+        }
+
+        guard let firstWorktreeLine = output.split(separator: "\n").first(where: { $0.hasPrefix("worktree ") }) else {
+            return nil
+        }
+
+        let worktreePath = String(firstWorktreeLine.dropFirst("worktree ".count))
+        guard !worktreePath.isEmpty else { return nil }
+        return (worktreePath as NSString).standardizingPath
     }
 
     public func ensureStoreDirectory() throws {
