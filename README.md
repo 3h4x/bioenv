@@ -151,7 +151,7 @@ Each project directory gets its own encryption key and encrypted store:
 ```
 
 1. `bioenv init` generates an AES-256 key, stores it in macOS Keychain, and creates an empty encrypted file
-2. Project identity = SHA-256 of the absolute directory path (so each project is isolated)
+2. Project identity = SHA-256 of the absolute directory path (so each project is isolated) — inside a git repository this resolves to the primary worktree's path (the main checkout, or the bare hub directory for a bare-with-worktrees setup) via `git worktree list`, so every linked worktree of the same repo shares one store instead of each needing its own `bioenv init`
 3. Secrets are stored as AES-256-GCM encrypted JSON
 4. Commands that decrypt or modify secrets require Touch ID (or system password) before the encryption key is used
 5. `bioenv load` outputs shell `export` statements — designed for `eval "$(bioenv load)"`
