@@ -9,6 +9,7 @@ Replace plaintext `.env` files with encrypted storage. One fingerprint tap to lo
 **Option 1: Download pre-built binary (easiest)**
 
 ```bash
+rm -f ~/bin/bioenv   # replace, don't overwrite in place (see Troubleshooting)
 curl -L https://github.com/3h4x/bioenv/releases/latest/download/bioenv-arm64 -o ~/bin/bioenv
 chmod +x ~/bin/bioenv
 codesign -s - -f ~/bin/bioenv
@@ -32,6 +33,14 @@ make setup                # activates pre-push hook (optional, for contributors)
 ```
 
 Make sure `~/bin` is in your `PATH`.
+
+### Troubleshooting: `bioenv` dies with `Killed: 9` / exit 137
+
+If you copied or downloaded a new binary **over** an existing `~/bin/bioenv` (plain `cp` or `curl -o` onto the old file), macOS may kill every launch with `SIGKILL (Code Signature Invalid)` — the crash report under `~/Library/Logs/DiagnosticReports/bioenv-*.ips` shows `Taskgated Invalid Signature`, while `codesign --verify` still says the file is valid. The kernel caches code-signature state per inode, and overwriting in place reuses the inode. Remove the old file and copy again so the binary gets a fresh inode:
+
+```bash
+rm -f ~/bin/bioenv && cp .build/release/bioenv ~/bin/bioenv   # or re-run make install / make install-from-source
+```
 
 ## Quick Start
 
