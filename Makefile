@@ -10,12 +10,20 @@ build:
 	swift build -c release
 	codesign -s - -f .build/release/bioenv
 
+# Both install targets remove the old binary before writing the new one. Overwriting an
+# executable in place (curl -o / cp onto an existing file) keeps the same inode, and macOS
+# caches code-signature state per vnode — the next launch dies with
+# "SIGKILL (Code Signature Invalid) / Taskgated Invalid Signature" even though
+# `codesign --verify` reports the file as valid on disk.
 install:
 	@mkdir -p ~/bin
-	curl -fL $(RELEASE_URL) -o ~/bin/bioenv
-	chmod +x ~/bin/bioenv
-	codesign -s - -f ~/bin/bioenv
+	curl -fL $(RELEASE_URL) -o ~/bin/bioenv.tmp
+	chmod +x ~/bin/bioenv.tmp
+	codesign -s - -f ~/bin/bioenv.tmp
+	rm -f ~/bin/bioenv
+	mv ~/bin/bioenv.tmp ~/bin/bioenv
 
 install-from-source: build
 	@mkdir -p ~/bin
+	rm -f ~/bin/bioenv
 	cp .build/release/bioenv ~/bin/bioenv

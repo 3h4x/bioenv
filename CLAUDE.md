@@ -28,8 +28,10 @@ Or manually:
 ```bash
 swift build -c release
 codesign -s - -f .build/release/bioenv
-cp .build/release/bioenv ~/bin/
+rm -f ~/bin/bioenv && cp .build/release/bioenv ~/bin/
 ```
+
+Always `rm -f` the old binary before copying a new one into `~/bin`. Overwriting it in place keeps the same inode, and macOS caches code-signature state per inode — the next launch is killed with `SIGKILL (Code Signature Invalid)` / `Taskgated Invalid Signature` even though `codesign --verify` passes. Both `make install` targets already do this.
 
 ## File Structure
 
